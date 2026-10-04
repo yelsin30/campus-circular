@@ -1,0 +1,37 @@
+# ==============================
+# OS & IDEs
+# ==============================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# ==============================
+# Backend: Java & Spring Boot
+# ==============================
+backend/target/
+backend/*.jar
+backend/*.war
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/application-local.properties
+backend/application-secret.properties
+
+# ==============================
+# Frontend: Angular & Node.js
+# ==============================
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/.angular/cache/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ==============================
+# Archivos de entorno y logs
+# ==============================
+*.env
+*.env.local
+*.log
