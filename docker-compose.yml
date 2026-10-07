@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. Base de Datos Relacional: MySQL 8.0
+  # ==========================================
+  mysql:
+    image: mysql:8.0
+    container_name: campus-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "2131"
+      MYSQL_DATABASE: campus_circular_db
+      MYSQL_USER: CC_G5
+      MYSQL_PASSWORD: "2131"
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: 
+      - --character-set-server=utf8mb4 
+      - --collation-server=utf8mb4_unicode_ci
+    networks:
+      - campus-network
+
+  # ==========================================
+  # 2. Servidor Mock SMTP: MailHog
+  # ==========================================
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: campus-mailhog
+    restart: always
+    ports:
+      - "1025:1025" # Puerto SMTP para recibir correos desde Spring Boot
+      - "8025:8025" # Interfaz Web para que los desarrolladores vean los correos
+    networks:
+      - campus-network
+
+# ==========================================
+# Volúmenes y Redes
+# ==========================================
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  campus-network:
+    driver: bridge
