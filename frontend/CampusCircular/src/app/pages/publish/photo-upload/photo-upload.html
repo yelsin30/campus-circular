@@ -1,0 +1,17 @@
+<section class="form-section photo-section">
+  <h2>1. Fotos del material</h2>
+  <div class="upload-zone" [class.dragging]="isDragging" [class.at-limit]="previews.length >= 4" (dragover)="onDragOver($event)" (dragleave)="onDragLeave()" (drop)="onDrop($event)">
+    <input #fileInput class="file-input" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple aria-label="Seleccionar fotos del material" (change)="onFilesSelected($event)" />
+    @if (previews.length) {
+      <div class="preview-list">
+        @for (image of previews; track image.dataUrl; let index = $index) {
+          <figure class="preview-item"><img [src]="image.dataUrl" [alt]="'Vista previa: ' + image.name" /><button type="button" class="remove-image" [attr.aria-label]="'Eliminar ' + image.name" (click)="removeImage(index)">×</button><figcaption>{{ image.name }}</figcaption></figure>
+        }
+        @if (previews.length < 4) { <button type="button" class="add-photo" (click)="fileInput.click()"><span aria-hidden="true">＋</span><span>Agregar foto</span></button> }
+      </div>
+    } @else {
+      <button type="button" class="upload-prompt" (click)="fileInput.click()"><span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 15v5h16v-5" /></svg></span><strong>Sube tus fotos aquí</strong><span>o arrastra archivos a esta zona</span><small>JPG o PNG · Hasta 5 MB cada una · Máximo 4 imágenes</small></button>
+    }
+  </div>
+  @if (photoErrors.length) { <ul class="photo-errors" role="alert">@for (error of photoErrors; track error) { <li>{{ error }}</li> }</ul> }
+</section>

@@ -1,0 +1,24 @@
+<header class="navbar">
+  <a class="brand" routerLink="/inicio" aria-label="Campus Circular, ir al inicio">
+    <span class="brand-mark" aria-hidden="true"><span>C</span></span>
+    <span>Campus Circular</span>
+  </a>
+
+  <nav class="nav-links" aria-label="Navegación principal">
+    <a routerLink="/inicio" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Inicio</a>
+    <a routerLink="/publicar" routerLinkActive="active">Publicar</a>
+    <a routerLink="/intercambios" routerLinkActive="active">Mis intercambios</a>
+    <a routerLink="/impacto" routerLinkActive="active">Impacto</a>
+  </nav>
+
+  <div class="account-actions">
+    <button class="icon-button" type="button" aria-label="Notificaciones">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+    </button>
+    <a class="profile-link" routerLink="/login">
+      <span class="profile-avatar" aria-hidden="true">MP</span>
+      <span>María Pérez</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+    </a>
+  </div>
+</header>

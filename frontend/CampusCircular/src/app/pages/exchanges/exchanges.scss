@@ -1,0 +1,32 @@
+:host { display:block; }
+.exchanges-page { margin:-.55rem auto 0; max-width:1140px; }
+.page-heading { align-items:center; display:flex; justify-content:space-between; margin:0 0 1.6rem; }
+.page-heading h1 { color:#20242b; font-size:clamp(1.6rem,2.5vw,2.15rem); letter-spacing:-.045em; margin:0; }
+.page-heading p { color:#7b8491; font-size:.84rem; margin:.45rem 0 0; }
+.explore-button { align-items:center; background:#fff; border:1px solid #e4e8ee; border-radius:.6rem; color:#303640; display:inline-flex; font-size:.75rem; font-weight:750; gap:.45rem; padding:.6rem .85rem; text-decoration:none; white-space:nowrap; }
+.explore-button:hover { background:#fff9df; border-color:#f0d45c; }
+.explore-button svg { fill:none; height:17px; stroke:currentColor; stroke-width:1.7; width:17px; }
+.exchange-layout { align-items:start; display:grid; gap:1.2rem; grid-template-columns:minmax(0,1.8fr) minmax(280px,.9fr); }
+.requests-panel { background:#fff; border:1px solid #e8ebef; border-radius:1rem; box-shadow:0 8px 26px rgba(30,41,59,.06); min-width:0; padding:1rem 1.1rem; }
+.tabs { border-bottom:1px solid #e9ecf1; display:flex; gap:.5rem; margin:-.15rem 0 .35rem; }
+.tabs button { background:none; border:0; border-bottom:3px solid transparent; color:#87909e; cursor:pointer; font:inherit; font-size:.75rem; font-weight:750; margin-bottom:-1px; padding:.65rem .8rem .7rem; }
+.tabs button.active { border-color:#ffd100; color:#262c35; }
+.tabs button span { color:#9098a5; }
+.safety-note { align-items:center; background:#fff7d9; border:1px solid #f6e5a3; border-radius:.6rem; color:#887233; display:flex; font-size:.66rem; gap:.35rem; margin:.7rem 0 0; padding:.55rem .65rem; }
+.safety-note svg { fill:none; flex:0 0 14px; height:14px; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.6; width:14px; }
+.empty-state { align-items:center; color:#7c8592; display:flex; flex-direction:column; padding:2.5rem 1rem; text-align:center; }
+.empty-state>span { color:#c2a225; font-size:2rem; }
+.empty-state h2 { color:#333a44; font-size:.9rem; margin:.5rem 0 .3rem; }
+.empty-state p { font-size:.72rem; margin:0 0 .8rem; }
+.empty-state a { background:#ffd100; border-radius:.45rem; color:#252a32; font-size:.68rem; font-weight:750; padding:.5rem .7rem; text-decoration:none; }
+.action-feedback { background:#f2f8ff; border-radius:.45rem; color:#38628e; font-size:.68rem; margin:.5rem 0; padding:.5rem .65rem; }
+@media (max-width:850px) { .exchange-layout { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:600px) {
+  .exchanges-page { margin-top:0; }
+  .page-heading { align-items:flex-start; flex-direction:column; gap:.8rem; margin-bottom:1rem; }
+  .page-heading h1 { font-size:1.6rem; }
+  .page-heading p { font-size:.76rem; line-height:1.45; }
+  .requests-panel { padding:.65rem; }
+  .tabs { gap:0; justify-content:space-between; }
+  .tabs button { font-size:.67rem; padding:.65rem .35rem; }
+}

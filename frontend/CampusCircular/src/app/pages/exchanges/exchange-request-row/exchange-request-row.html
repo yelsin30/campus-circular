@@ -1,0 +1,26 @@
+<article class="request-row" [class.row-selected]="selected" (click)="emit('select')">
+  <div class="request-art" [style.backgroundColor]="material.background">
+    @if (material.images?.length) { <img [src]="material.images[0]" [alt]="material.title" /> }
+    @else { <app-material-artwork [art]="material.art" /> }
+  </div>
+  <div class="request-content">
+    <div class="request-title-line"><h2>{{ material.title }}</h2><span class="status-badge" [class]="statusClass">{{ request.status }}</span></div>
+    <p class="request-meta"><span class="person-icon" aria-hidden="true">●</span> De: {{ counterparty }} <span class="separator">·</span> {{ request.mode }}@if (request.mode === 'Precio solidario' && material.price !== undefined) { · S/ {{ material.price }} }</p>
+    <p class="request-date">{{ request.dateLabel }}@if (request.demo) { <span> · Demostración</span> }</p>
+    @if (request.message && (request.status === 'En negociación' || agreementDetailsVisible)) { <p class="agreement-note"><strong>Mensaje del acuerdo:</strong> {{ request.message }}</p> }
+
+    @if (activeTab === 'received' && request.status === 'Pendiente') {
+      <div class="row-actions"><button type="button" class="small-primary" (click)="emit('accept', $event)">Aceptar</button><button type="button" class="small-secondary danger" (click)="emit('reject', $event)">Rechazar</button><button type="button" class="text-action" (click)="emit('negotiate', $event)">Conversar</button></div>
+    } @else if (activeTab === 'received' && request.status === 'En negociación') {
+      <div class="row-actions"><button type="button" class="small-secondary" (click)="emit('agreement', $event)">Ver detalles del acuerdo</button><button type="button" class="small-primary" (click)="emit('accept-negotiation', $event)">Aceptar acuerdo</button><button type="button" class="text-action danger-text" (click)="emit('reject-negotiation', $event)">Cerrar</button></div>
+    } @else if (activeTab === 'received' && request.status === 'Aceptado') {
+      <div class="row-actions"><button type="button" class="small-primary" (click)="emit('select', $event)">Confirmar entrega</button></div>
+    } @else if (activeTab === 'sent' && ['Pendiente', 'En negociación'].includes(request.status)) {
+      <div class="row-actions">@if (request.status === 'En negociación') { <button type="button" class="small-secondary" (click)="emit('agreement', $event)">Ver detalles</button> }<button type="button" class="small-secondary danger" (click)="emit('cancel', $event)">Cancelar solicitud</button></div>
+    } @else if (activeTab === 'sent' && request.status === 'Aceptado') {
+      <div class="row-actions"><button type="button" class="small-primary" (click)="emit('select', $event)">Coordinar entrega</button></div>
+    } @else if (activeTab === 'completed') {
+      <div class="row-actions"><span class="completed-note">✓ Entrega confirmada por ambas partes</span>@if (alreadyRated) { <span class="rated-note">Ya calificaste</span> } @else { <button type="button" class="small-secondary" (click)="emit('select', $event)">Calificar usuario</button> }</div>
+    }
+  </div>
+</article>

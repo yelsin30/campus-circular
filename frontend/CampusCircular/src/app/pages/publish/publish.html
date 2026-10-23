@@ -1,0 +1,135 @@
+<main class="publish-page">
+  <nav class="breadcrumbs" aria-label="Ruta de navegación">
+    <a routerLink="/inicio">Inicio</a><span aria-hidden="true">›</span><span aria-current="page">Publicar material</span>
+  </nav>
+
+  <header class="page-heading">
+    <div>
+      <h1>Publica un nuevo material</h1>
+      <p>Comparte con la comunidad y dale una segunda vida a tus materiales universitarios.</p>
+    </div>
+    <span class="requirements-badge">RF02 · Publicaciones</span>
+  </header>
+
+  @if (publishedMaterial; as published) {
+    <section class="publication-success" role="status">
+      <span class="success-mark" aria-hidden="true">✓</span>
+      <div class="success-copy">
+        <h2>¡Tu material está en el catálogo!</h2>
+        <p>{{ publishMessage }}</p>
+      </div>
+      <div class="success-actions">
+        <a [routerLink]="['/material', published.id]">Ver detalle</a>
+        <a routerLink="/inicio">Ir al Home</a>
+      </div>
+    </section>
+  }
+
+  <form class="publish-grid" [formGroup]="form" (ngSubmit)="publish()" novalidate>
+    <section class="form-card left-card" aria-label="Información del material">
+      <app-photo-upload [previews]="previews" (previewsChange)="updatePreviews($event)" [photoErrors]="photoErrors" (photoErrorsChange)="photoErrors = $event" />
+
+      <section class="form-section item-section">
+        <h2>2. Información del material</h2>
+        <div class="field-block">
+          <label for="material-title">Nombre del material <span>*</span></label>
+          <input id="material-title" type="text" formControlName="title" maxlength="100" placeholder="Ej. Libro de Cálculo Diferencial (7ma edición)" [class.invalid]="fieldInvalid('title')" />
+          @if (fieldInvalid('title')) {
+            <small class="field-error">{{ form.controls.title.hasError('required') ? 'Ingresa el nombre del material.' : form.controls.title.hasError('pattern') ? 'El nombre no puede contener solo espacios.' : 'El nombre no puede superar los 100 caracteres.' }}</small>
+          }
+        </div>
+
+        <div class="field-block">
+          <label for="material-description">Descripción <span>*</span></label>
+          <textarea id="material-description" formControlName="description" maxlength="1000" rows="4" placeholder="Describe el artículo, su contenido y estado de conservación..." [class.invalid]="fieldInvalid('description')"></textarea>
+          @if (fieldInvalid('description')) {
+            <small class="field-error">{{ form.controls.description.hasError('required') ? 'Agrega una descripción del material.' : form.controls.description.hasError('pattern') ? 'La descripción no puede contener solo espacios.' : 'La descripción no puede superar los 1000 caracteres.' }}</small>
+          }
+        </div>
+
+        <div class="two-fields">
+          <div class="field-block">
+            <label for="career">Carrera académica <span>*</span></label>
+            <select id="career" formControlName="career" [class.invalid]="fieldInvalid('career')">
+              <option value="">Selecciona una carrera</option>
+              @for (career of careers; track career) { <option [value]="career">{{ career }}</option> }
+            </select>
+            @if (fieldInvalid('career')) { <small class="field-error">Selecciona tu carrera académica.</small> }
+          </div>
+          <div class="field-block">
+            <label for="category">Categoría <span>*</span></label>
+            <select id="category" formControlName="category" [class.invalid]="fieldInvalid('category')">
+              <option value="">Selecciona una categoría</option>
+              @for (category of categories; track category) { <option [value]="category">{{ category }}</option> }
+            </select>
+            @if (fieldInvalid('category')) { <small class="field-error">Selecciona una categoría.</small> }
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="form-card right-card" aria-label="Estado, modalidad y publicación">
+      <section class="form-section status-section">
+        <h2>3. Estado y modalidad</h2>
+        <fieldset class="choice-group">
+          <legend>Estado de conservación física <span>*</span></legend>
+          <div class="choice-grid">
+            @for (condition of conditions; track condition) {
+              <label class="choice-card" [class.selected]="form.controls.condition.value === condition">
+                <input type="radio" formControlName="condition" [value]="condition" />
+                <span>{{ condition }}</span>
+              </label>
+            }
+          </div>
+          @if (fieldInvalid('condition')) { <small class="field-error">Selecciona el estado físico del material.</small> }
+        </fieldset>
+
+        <fieldset class="choice-group mode-group">
+          <legend>¿Cómo quieres compartirlo? <span>*</span></legend>
+          <div class="choice-grid mode-grid">
+            @for (mode of modes; track mode) {
+              <label class="choice-card" [class.selected]="form.controls.mode.value === mode">
+                <input type="radio" formControlName="mode" [value]="mode" />
+                <span>{{ mode }}</span>
+              </label>
+            }
+          </div>
+          @if (fieldInvalid('mode')) { <small class="field-error">Selecciona una modalidad de intercambio.</small> }
+          @if (priceModeSelected) {
+            <div class="field-block price-field">
+              <label for="material-price">Precio del material (S/) <span>*</span></label>
+              <div class="price-input-wrap"><span>S/</span><input id="material-price" type="number" formControlName="price" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" [class.invalid]="fieldInvalid('price')" /></div>
+              @if (fieldInvalid('price')) {
+                <small class="field-error">
+                  @if (form.controls.price.hasError('required')) { Ingresa el precio del material. }
+                  @else if (form.controls.price.hasError('min')) { El precio debe ser mayor que S/ 0. }
+                  @else { Ingresa un precio válido con máximo dos decimales. }
+                </small>
+              }
+            </div>
+          }
+        </fieldset>
+      </section>
+
+      <aside class="trust-card">
+        <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg>Publica con confianza</h3>
+        <ul>
+          <li>Usa fotos claras y reales.</li>
+          <li>Indica el estado del material con sinceridad.</li>
+          <li>Coordina entregas dentro del campus.</li>
+        </ul>
+        <p>Tu publicación será visible para la comunidad UPN.</p>
+      </aside>
+
+      @if (publishMessage && !publishedMaterial) {
+        <p class="submit-error" role="alert">{{ publishMessage }}</p>
+      }
+      <div class="form-actions">
+        <button class="cancel-button" type="button" (click)="cancel()">Cancelar</button>
+        <button class="publish-button" type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h13l-3-3m4 13H6l3 3" /><path d="M18 7V4M6 17v3" /></svg>Publicar material</button>
+      </div>
+    </section>
+  </form>
+
+  <p class="memory-note">Modo de demostración: las publicaciones se conservan en memoria durante esta sesión y se perderán al recargar la aplicación.</p>
+</main>

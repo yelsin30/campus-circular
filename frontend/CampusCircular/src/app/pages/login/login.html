@@ -1,0 +1,82 @@
+<main class="login-screen">
+  <app-auth-brand />
+
+  <section class="form-panel" aria-labelledby="login-title">
+    <div class="login-form">
+      <div class="mail-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+      </div>
+
+      <p class="form-eyebrow">ACCESO SEGURO</p>
+      <h2 id="login-title">Ingresa con tu correo institucional</h2>
+      <p class="form-description">Exclusivo para estudiantes y docentes UPN. Recibirás un código de verificación en tu correo Outlook institucional.</p>
+
+      <form (submit)="$event.preventDefault(); sendVerificationCode()" novalidate>
+        <label class="field-label" for="institutional-email">Correo institucional</label>
+        <input
+          id="institutional-email"
+          class="email-input"
+          type="email"
+          name="email"
+          autocomplete="email"
+          placeholder="nombre.apellido@upn.pe"
+          [value]="email"
+          [attr.aria-invalid]="emailError ? 'true' : 'false'"
+          aria-describedby="email-help email-error"
+          (input)="email = $any($event.target).value"
+        />
+        <p id="email-help" class="sr-only">Usa tu dirección institucional terminada en @upn.pe.</p>
+        @if (emailError) {
+          <p id="email-error" class="error-message" role="alert">{{ emailError }}</p>
+        }
+
+        <button class="send-button" type="submit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+          Enviar código de verificación
+        </button>
+      </form>
+
+      <div class="step-divider"><span>Luego, ingresa el código recibido</span></div>
+
+      <fieldset class="otp-fieldset" [disabled]="!codeSent">
+        <legend>Código de 6 dígitos</legend>
+        <div class="otp-inputs" role="group" aria-label="Código de verificación de seis dígitos">
+          @for (digit of otpDigits; track $index) {
+            <input
+              class="otp-input"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="1"
+              [attr.autocomplete]="$index === 0 ? 'one-time-code' : 'off'"
+              [attr.aria-label]="'Dígito ' + ($index + 1)"
+              [value]="digit"
+              (input)="updateOtpDigit($index, $event)"
+              (keydown)="handleOtpKeydown($index, $event)"
+              (paste)="pasteOtp($event)"
+            />
+          }
+        </div>
+      </fieldset>
+
+      @if (otpError) {
+        <p class="error-message otp-error" role="alert">{{ otpError }}</p>
+      }
+      @if (statusMessage) {
+        <p class="success-message" role="status">{{ statusMessage }}</p>
+      }
+
+      <button class="verify-button" type="button" [disabled]="!codeSent" (click)="verifyCode()">
+        Verificar y acceder
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+      </button>
+
+      <div class="resend-row">
+        <span>¿No recibiste el código?</span>
+        <button type="button" [disabled]="!institutionalEmailIsValid" (click)="sendVerificationCode()">Reenviar código</button>
+      </div>
+
+      <p class="prototype-note">Prototipo visual: código de prueba <strong>{{ demoCode }}</strong>. No envía correos reales ni genera JWT.</p>
+    </div>
+  </section>
+</main>

@@ -1,0 +1,86 @@
+<main class="impact-page">
+  <header class="impact-header">
+    <div>
+      <p class="eyebrow">SOSTENIBILIDAD EN ACCIÓN</p>
+      <h1>Nuestro impacto comunitario</h1>
+      <p class="subtitle">Cada intercambio cuenta. Descubre cómo nuestra comunidad UPN contribuye a un campus más sostenible.</p>
+    </div>
+    <span class="community-badge"><span aria-hidden="true"></span>Comunidad Campus Circular</span>
+  </header>
+
+  <section class="metric-grid" aria-label="Indicadores de impacto">
+    <article class="metric-card">
+      <span class="metric-icon reuse-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3m5 11H6l3 3"/><path d="M18 8V5M6 16v3"/></svg></span>
+      <div class="metric-copy"><p class="metric-value">{{ metrics().reusedMaterialCount }}</p><h2>Materiales reutilizados</h2><p class="metric-description">Materiales que encontraron una segunda oportunidad</p></div>
+    </article>
+    <article class="metric-card">
+      <span class="metric-icon raee-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 4C12 4 6 7 6 14a6 6 0 0 0 6 6c7 0 10-8 8-16Z"/><path d="M4 21c3-5 6-8 12-12"/></svg></span>
+      <div class="metric-copy"><p class="metric-value">@if (metrics().estimatedRaeeKg !== null) { {{ metrics().estimatedRaeeKg }} kg } @else { Sin datos }</p><h2>RAEE potencialmente evitados</h2><p class="metric-description">Kg estimados de residuos electrónicos potencialmente evitados</p></div>
+    </article>
+    <article class="metric-card">
+      <span class="metric-icon savings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v5c0 2 3 3 7 3s7-1 7-3V5m-14 5v5c0 2 3 3 7 3s7-1 7-3v-5m-14 5v4c0 2 3 3 7 3s7-1 7-3v-4"/></svg></span>
+      <div class="metric-copy"><p class="metric-value savings-value">{{ money(metrics().estimatedSavingsSoles) }}</p><h2>Ahorro económico</h2><p class="metric-description">Ahorro estimado por reutilización de materiales</p></div>
+    </article>
+  </section>
+
+  @if (metrics().reusedMaterialsAreDemo) {
+    <p class="demo-disclosure"><span aria-hidden="true">●</span> Incluye intercambios de demostración. Los indicadores se calculan únicamente con transacciones completadas.</p>
+  }
+
+  <section class="charts-grid" aria-label="Estadísticas de impacto">
+    <article class="chart-card activity-card">
+      <header class="chart-heading"><div><h2>Actividad de intercambios</h2><p>Transacciones completadas por mes · {{ currentMonth.split(' ')[1] }}</p></div></header>
+      @if (currentYearTransactions > 0) {
+        <div class="bar-chart" role="img" [attr.aria-label]="'Gráfico de intercambios mensuales, ' + metrics().completedTransactions + ' transacciones completadas este año'">
+          <div class="y-axis"><span>{{ monthlyMax }}</span><span>{{ monthlyMid }}</span><span>0</span></div>
+          <div class="plot-area">
+            <div class="grid-lines" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="bars">
+              @for (point of metrics().monthlyActivity; track $index) {
+                <div class="bar-column" [title]="point.month + ': ' + point.count + ' intercambios'">
+                  <span class="bar-count">{{ point.count || '' }}</span>
+                  <div class="bar-track"><span class="bar" [style.height.%]="barHeight(point.count)" [class.has-value]="point.count > 0"></span></div>
+                  <span class="month-label">{{ point.month }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      } @else {
+        <div class="chart-empty"><span aria-hidden="true">↔</span><p>Aún no hay intercambios completados este año.</p></div>
+      }
+    </article>
+
+    <article class="chart-card category-card">
+      <header class="chart-heading"><div><h2>Materiales que más reutilizamos</h2><p>Artículos únicos de transacciones completadas</p></div></header>
+      @if (metrics().reusedMaterialCount > 0) {
+        <div class="category-chart">
+          <div class="donut-wrap"><div class="donut" [style.background]="categoryConicGradient"><div class="donut-center"><span>Materiales</span><strong>{{ metrics().reusedMaterialCount }}</strong></div></div></div>
+          <ul class="category-legend">
+            @for (item of metrics().categoryDistribution; track item.category; let index = $index) {
+              <li><span class="legend-name"><i [class]="'legend-dot color-' + index"></i>{{ item.category }}</span><strong>{{ item.count }}<small> · {{ item.percentage }}%</small></strong></li>
+            }
+          </ul>
+        </div>
+      } @else {
+        <div class="chart-empty"><span aria-hidden="true">◌</span><p>La distribución aparecerá al completar intercambios.</p></div>
+      }
+    </article>
+  </section>
+
+  <section class="impact-message" aria-labelledby="impact-message-title">
+    <span class="earth-icon" aria-hidden="true">🌍</span>
+    <div class="message-copy"><h2 id="impact-message-title">Juntos construimos un campus sostenible</h2><p>Cada material reutilizado representa una oportunidad para reducir el desperdicio, ahorrar recursos y ayudar a otro estudiante a continuar su aprendizaje.</p>
+      <ul class="benefits"><li><span class="benefit-icon">↘</span>Menos desperdicio</li><li><span class="benefit-icon">S/</span>Mayor ahorro</li><li><span class="benefit-icon">♡</span>Comunidad colaborativa</li></ul>
+    </div>
+  </section>
+
+  <footer class="assumptions-note">
+    <strong>Transparencia de las estimaciones:</strong>
+    @if (metrics().raeeAreEstimated) { El peso RAEE usa supuestos referenciales demo solo para equipos electrónicos; no representa un pesaje verificado. }
+    @else { No hay datos suficientes para estimar el peso de RAEE. }
+    @if (metrics().savingsAreEstimated) { El ahorro usa valores de referencia y pagos documentados en el catálogo demo; es una estimación, no un ahorro verificado. }
+    @else { No hay datos suficientes para calcular ahorro. }
+    Las publicaciones y transacciones están en memoria durante esta sesión y pueden perderse al recargar.
+  </footer>
+</main>

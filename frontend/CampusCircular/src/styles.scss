@@ -1,0 +1,44 @@
+:root {
+	color-scheme: light;
+	--cc-yellow: #ffd100;
+	--cc-black: #191919;
+	--cc-white: #ffffff;
+	--cc-gray: #f4f5f7;
+
+	background: var(--cc-gray);
+	color: var(--cc-black);
+	font-family: Arial, Helvetica, sans-serif;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	background: var(--cc-gray);
+}
+
+.page-placeholder {
+	background: var(--cc-white);
+	border-radius: 1rem;
+	margin-inline: auto;
+	max-width: 720px;
+	padding: clamp(1.5rem, 5vw, 3rem);
+}
+
+.page-placeholder h1 {
+	margin: 0 0 0.75rem;
+}
+
+.page-placeholder p {
+	line-height: 1.6;
+	margin: 0;
+}

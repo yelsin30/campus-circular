@@ -1,0 +1,25 @@
+<svg class="product-art" [class.variant-one]="variant === 1" [class.variant-two]="variant === 2" viewBox="0 0 180 130" aria-hidden="true">
+  @switch (art) {
+    @case ('calculus') {
+      <g transform="rotate(-10 90 65)"><rect x="49" y="13" width="76" height="103" rx="5" fill="#163a74" /><path d="M55 19h65v75L55 105V19Z" fill="#fff" /><path d="m55 76 65-26v27l-65 27V76Z" fill="#224f9b" /><text x="63" y="39" font-size="8" font-weight="700" fill="#18386b">CÁLCULO</text><text x="63" y="49" font-size="6" fill="#18386b">DIFERENCIAL</text><text x="64" y="61" font-size="4.5" fill="#56657b">7ma edición</text><path d="M63 68h31" stroke="#9aa8ba" stroke-width="1" /></g>
+    }
+    @case ('calculator') {
+      <g transform="rotate(10 90 65)"><rect x="57" y="9" width="67" height="111" rx="12" fill="#1b2730" /><rect x="64" y="18" width="53" height="25" rx="3" fill="#b7c9bd" /><text x="69" y="34" font-size="10" fill="#30483e">53.091</text><g fill="#68717a"><rect x="65" y="51" width="12" height="12" rx="2"/><rect x="82" y="51" width="12" height="12" rx="2"/><rect x="99" y="51" width="12" height="12" rx="2"/><rect x="65" y="68" width="12" height="12" rx="2"/><rect x="82" y="68" width="12" height="12" rx="2"/><rect x="99" y="68" width="12" height="12" rx="2"/><rect x="65" y="85" width="12" height="12" rx="2"/><rect x="82" y="85" width="12" height="12" rx="2"/></g><rect x="99" y="85" width="12" height="29" rx="3" fill="#f3bd35"/><rect x="65" y="102" width="29" height="12" rx="3" fill="#68717a"/></g>
+    }
+    @case ('notes') {
+      <g transform="rotate(8 90 65)"><rect x="55" y="14" width="76" height="100" rx="5" fill="#d8d8d3"/><rect x="59" y="10" width="69" height="100" rx="4" fill="#fff"/><g fill="#657282"><circle cx="61" cy="23" r="2.4"/><circle cx="61" cy="38" r="2.4"/><circle cx="61" cy="53" r="2.4"/><circle cx="61" cy="68" r="2.4"/><circle cx="61" cy="83" r="2.4"/></g><g stroke="#76a9e4" stroke-width="1.5"><path d="M70 28h48M70 42h48M70 56h48M70 70h48M70 84h42"/></g></g>
+    }
+    @case ('backpack') {
+      <g transform="rotate(-5 90 66)"><path d="M72 30c0-14 8-22 19-22s19 8 19 22" fill="none" stroke="#273951" stroke-width="7"/><rect x="48" y="28" width="86" height="91" rx="27" fill="#263d60"/><path d="M58 67c0-8 7-14 15-14h36c9 0 16 7 16 16v24c0 7-6 13-13 13H70c-7 0-12-5-12-12V67Z" fill="#314d76"/><path d="M73 67h29c6 0 10 5 10 11v11H65V78c0-6 3-11 8-11Z" fill="#1d304d"/><path d="M78 70h19v15H78z" fill="#47658e"/><path d="M58 48c-7 7-10 19-10 34m86-34c7 7 10 19 10 34" fill="none" stroke="#1e304c" stroke-width="5"/></g>
+    }
+    @case ('algorithms') {
+      <g transform="rotate(-8 90 65)"><rect x="51" y="12" width="78" height="104" rx="5" fill="#12294a"/><path d="M58 19h65v88H58z" fill="#19375e"/><path d="m58 75 65-20v21l-65 20V75Z" fill="#f0b323"/><text x="66" y="39" font-size="7" font-weight="700" fill="#fff">INTRODUCCIÓN</text><text x="66" y="49" font-size="6" fill="#fff">A LOS</text><text x="66" y="59" font-size="7" font-weight="700" fill="#fff">ALGORITMOS</text><text x="67" y="71" font-size="4.5" fill="#bdc8d8">Lógica y programación</text></g>
+    }
+    @case ('tablet') {
+      <g transform="rotate(-12 90 65)"><rect x="38" y="26" width="105" height="72" rx="10" fill="#192632"/><rect x="44" y="32" width="93" height="60" rx="5" fill="#344c65"/><rect x="48" y="36" width="85" height="52" rx="3" fill="#304765"/><path d="m52 75 79-24v35l-79 2V75Z" fill="#263b57"/><circle cx="140" cy="62" r="2" fill="#657789"/></g>
+    }
+    @case ('arduino') {
+      <g transform="rotate(-8 90 65)"><rect x="44" y="29" width="91" height="72" rx="6" fill="#d8b983"/><rect x="51" y="36" width="77" height="58" rx="3" fill="#f2dfbd"/><rect x="64" y="51" width="50" height="29" rx="4" fill="#0f6b7d"/><rect x="70" y="56" width="37" height="19" rx="2" fill="#1c5066"/><rect x="58" y="56" width="8" height="18" fill="#ecad36"/><rect x="112" y="56" width="8" height="18" fill="#ecad36"/><circle cx="59" cy="44" r="2" fill="#97794c"/><circle cx="120" cy="86" r="2" fill="#97794c"/></g>
+    }
+  }
+</svg>

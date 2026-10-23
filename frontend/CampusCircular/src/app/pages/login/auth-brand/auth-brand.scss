@@ -1,0 +1,32 @@
+:host { display: block; }
+.brand-panel { background: linear-gradient(145deg, #ffdf35, #ffc400); display: flex; flex-direction: column; min-height: 100dvh; overflow: hidden; padding: clamp(2rem, 4.5vw, 4.5rem); position: relative; }
+.brand { align-items: center; color: var(--cc-black); display: inline-flex; font-size: clamp(1.2rem, 2vw, 1.65rem); font-weight: 850; gap: 0.65rem; text-decoration: none; width: fit-content; }
+.brand-icon { align-items: center; background: var(--cc-black); border-radius: 0.7rem; display: inline-flex; height: 2.5rem; justify-content: center; width: 2.5rem; }
+.brand-icon svg { fill: var(--cc-yellow); height: 1.75rem; width: 1.75rem; }
+.brand-message { margin-top: clamp(3rem, 6vw, 5.5rem); position: relative; z-index: 1; }
+.brand-message h1 { font-size: clamp(2rem, 3.5vw, 3.3rem); font-weight: 850; letter-spacing: -0.055em; line-height: 1.06; margin: 0; }
+.brand-message p { color: #594600; font-size: clamp(0.95rem, 1.3vw, 1.15rem); line-height: 1.55; margin: 1.6rem 0 0; }
+.campus-illustration { align-self: center; margin-block: auto; max-width: min(100%, 390px); width: 75%; }
+.campus-illustration svg { display: block; overflow: visible; width: 100%; }
+.cycle-arrow { fill: #64a653; }
+.screen-frame { fill: #263d59; filter: drop-shadow(0 12px 9px rgb(0 0 0 / 18%)); }
+.screen-face { fill: #f5fbff; }
+.screen-shine { fill: #fff; opacity: 0.65; }
+.screen-word { fill: #39617b; font-size: 18px; font-weight: 850; letter-spacing: 3px; }
+.sustainability-note { align-items: center; display: flex; font-size: 0.77rem; font-weight: 700; gap: 0.6rem; margin: 1rem 0 0; position: relative; z-index: 1; }
+.sustainability-note svg { fill: none; height: 18px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 18px; }
+@media (max-width: 800px) {
+  .brand-panel { padding: 2rem; }
+  .desktop-break { display: none; }
+  .campus-illustration { width: 95%; }
+}
+@media (max-width: 600px) {
+  .brand-panel { min-height: auto; padding: 1.4rem 1.25rem 1.1rem; }
+  .brand { font-size: 1.1rem; }
+  .brand-icon { height: 2.1rem; width: 2.1rem; }
+  .brand-message { margin-top: 1.8rem; }
+  .brand-message h1 { font-size: clamp(1.8rem, 8vw, 2.5rem); }
+  .brand-message p { font-size: 0.9rem; margin-top: 0.7rem; }
+  .campus-illustration { display: none; }
+  .sustainability-note { font-size: 0.68rem; margin-top: 1.3rem; }
+}

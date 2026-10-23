@@ -1,0 +1,48 @@
+<aside class="side-panel">
+  <section class="side-card delivery-card" aria-labelledby="delivery-title">
+    <div class="side-card-heading"><h2 id="delivery-title">Confirmar entrega</h2><svg viewBox="0 0 24 24" aria-label="Confirmación presencial"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <p class="side-description">Cuando se realice el intercambio presencial en la sede UPN, ambos estudiantes validarán un código OTP.</p>
+    @if (request; as selected) {
+      @if (deliveryEnabled) {
+        <div class="selected-exchange"><strong>{{ material?.title }}</strong><span>Confirma como: <b>{{ otpRole === 'owner' ? 'Propietario' : 'Solicitante' }}</b></span></div>
+        <label class="otp-label" for="delivery-code">Código OTP de 6 dígitos</label>
+        <input id="delivery-code" class="otp-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" [value]="otpCode" (input)="updateOtp($event)" placeholder="482931" />
+        <div class="demo-code-note">Código de prueba · 482931</div>
+        <div class="confirmers">
+          <button type="button" [class.confirmed]="selected.ownerConfirmed" [disabled]="selected.ownerConfirmed" (click)="chooseRole('owner')">{{ selected.ownerConfirmed ? '✓ Propietario confirmó' : 'Simular propietario' }}</button>
+          <button type="button" [class.confirmed]="selected.requesterConfirmed" [disabled]="selected.requesterConfirmed" (click)="chooseRole('requester')">{{ selected.requesterConfirmed ? '✓ Solicitante confirmó' : 'Simular solicitante' }}</button>
+        </div>
+        <button type="button" class="confirm-button" [disabled]="selected.ownerConfirmed && selected.requesterConfirmed" (click)="confirmDelivery()"><span aria-hidden="true">✓</span>{{ selected.ownerConfirmed && selected.requesterConfirmed ? 'Entrega completada' : 'Confirmar como ' + (otpRole === 'owner' ? 'propietario' : 'solicitante') }}</button>
+        @if (otpMessage) { <p class="feedback" [class.feedback-success]="otpMessage.includes('Confirmación') || otpMessage.includes('Ambas partes')" role="status">{{ otpMessage }}</p> }
+        <p class="otp-footnote">El intercambio se completa cuando ambas partes confirman. OTP simulado solo para demostración; no es seguridad real.</p>
+      } @else {
+        <div class="no-selected"><p>Selecciona una solicitud <strong>Aceptada</strong> para habilitar la confirmación bilateral.</p>@if (selected.status === 'Completado') { <span>Esta entrega ya fue completada.</span> }</div>
+      }
+    } @else {
+      <div class="no-selected"><p>Selecciona una solicitud aceptada de la lista para confirmar la entrega.</p></div>
+    }
+  </section>
+
+  <section class="side-card rating-card" aria-labelledby="rating-title">
+    <h2 id="rating-title">Calificar usuario</h2>
+    @if (request; as selected) {
+      @if (selected.status === 'Completado') {
+        <div class="rating-person"><span class="rating-avatar">{{ counterparty.slice(0, 1) }}{{ counterparty.split(' ')[1]?.slice(0, 1) ?? '' }}</span><span><strong>{{ counterparty }}</strong><small>{{ material?.title }} · Intercambio completado</small></span></div>
+        @if (alreadyRated) {
+          <p class="already-rated">Ya registraste una calificación de demostración para esta transacción.</p>
+        } @else {
+          <div class="star-picker" role="group" aria-label="Califica de una a cinco estrellas">
+            @for (star of [1, 2, 3, 4, 5]; track star) { <button type="button" [class.star-active]="star <= selectedRating" [attr.aria-label]="star + ' estrellas'" [attr.aria-pressed]="selectedRating === star" (click)="setRating(star)">{{ star <= selectedRating ? '★' : '☆' }}</button> }
+          </div>
+          <textarea class="rating-comment" maxlength="500" placeholder="Escribe un comentario (opcional)..." [value]="ratingComment" (input)="updateRatingComment($event)"></textarea>
+          <button type="button" class="confirm-button" (click)="submitRating()">Enviar calificación</button>
+          @if (ratingMessage) { <p class="feedback feedback-success" role="status">{{ ratingMessage }}</p> }
+        }
+      } @else {
+        <div class="no-selected"><p>Podrás calificar al otro estudiante cuando el intercambio esté completado.</p></div>
+      }
+    } @else {
+      <div class="no-selected"><p>Selecciona una transacción completada para calificar a la otra persona.</p></div>
+    }
+  </section>
+</aside>

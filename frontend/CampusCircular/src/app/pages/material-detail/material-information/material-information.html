@@ -1,0 +1,31 @@
+<section class="information-panel" aria-labelledby="material-title">
+  <div class="topline">
+    <span class="category-chip" [class.equipment-chip]="material.category === 'Equipos'">{{ material.category }}</span>
+    <button type="button" class="save-button" [class.saved]="isSaved" [attr.aria-pressed]="isSaved" (click)="saveToggled.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 4.1-8.8 10.1-8.8 10.1S3.2 12.9 3.2 8.8a4.5 4.5 0 0 1 8.8-1.2 4.5 4.5 0 0 1 8.8 1.2Z" /></svg>{{ isSaved ? 'Guardado' : 'Guardar' }}</button>
+  </div>
+  <h1 id="material-title">{{ material.title }}</h1>
+  <span class="condition-chip" [class.condition-new]="material.condition === 'Nuevo'" [class.condition-used]="material.condition !== 'Nuevo'">{{ material.condition }}</span>
+  <div class="metadata-grid">
+    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 7h8M8 10h8M8 13h5" /></svg>{{ material.career }}</span>
+    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>{{ material.campus }}</span>
+    <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 8h8M8 11h8M8 14h5" /></svg>{{ material.publisher }}</span>
+    <span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>Publicado {{ material.publishedLabel }}</span>
+  </div>
+  <section class="description-section"><h2>Descripción</h2><p>{{ material.description }}</p></section>
+  <section class="exchange-section">
+    <h2>Modalidad de intercambio</h2>
+    <div class="exchange-options">
+      <span class="exchange-option" [class.option-active]="material.mode === 'Donación'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v10H4zM2 7h20v4H2zM12 7v13M8 4c2 0 4 3 4 3s-4 1-5-1 0-2 1-2Zm8 0c-2 0-4 3-4 3s4 1 5-1 0-2-1-2Z" /></svg>Donación</span>
+      <span class="exchange-option" [class.option-active]="material.mode === 'Trueque'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3m5 11H6l3 3" /><path d="M18 8v-3M6 16v3" /></svg>Trueque</span>
+      <span class="exchange-option" [class.option-active]="material.mode === 'Precio solidario'"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v5c0 2 3 3 7 3s7-1 7-3V5m-14 5v5c0 2 3 3 7 3s7-1 7-3v-5m-14 5v4c0 2 3 3 7 3s7-1 7-3v-4" /></svg>Precio solidario</span>
+    </div>
+    @if (material.mode === 'Precio solidario' && material.price !== undefined) { <p class="price-display">Precio solidario <strong>S/ {{ material.price }}</strong></p> }
+  </section>
+  <section class="owner-section">
+    <h2>Publicado por</h2>
+    <div class="owner-card"><span class="owner-avatar">{{ material.initials }}</span><div class="owner-data"><strong>{{ material.owner }}</strong><span class="rating"><span aria-label="Estrellas">★★★★★</span> {{ material.rating.toFixed(1) }} ({{ material.ratingCount }} calificaciones)</span></div><svg class="verified-icon" viewBox="0 0 24 24" aria-label="Perfil de demostración"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg></div>
+  </section>
+  <button type="button" class="request-button" (click)="requestOpened.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3m5 11H6l3 3" /><path d="M18 8v-3M6 16v3" /></svg>Solicitar material</button>
+  <div class="secondary-actions"><button type="button" class="report-button" (click)="reportOpened.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5m0 3h.01" /></svg>Reportar publicación</button><button type="button" class="share-button" (click)="shareRequested.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.7 10.7 6.6-4.4m-6.6 9.4 6.6 2.6" /></svg>Compartir</button></div>
+  @if (shareMessage) { <p class="share-feedback" role="status">{{ shareMessage }}</p> }
+</section>

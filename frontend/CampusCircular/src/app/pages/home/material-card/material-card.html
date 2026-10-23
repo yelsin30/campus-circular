@@ -1,0 +1,27 @@
+<article class="material-card">
+  <div class="material-visual" [style.backgroundColor]="material.background">
+    <a class="visual-link" [routerLink]="['/material', material.id]" [attr.aria-label]="'Ver ' + material.title">
+      <app-material-artwork [art]="material.art" />
+    </a>
+    <button class="favorite-button" type="button" [class.is-favorite]="favorite" [attr.aria-label]="favorite ? 'Quitar de favoritos' : 'Agregar a favoritos'" [attr.aria-pressed]="favorite" (click)="favoriteToggled.emit(material.id)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 4.1-8.8 10.1-8.8 10.1S3.2 12.9 3.2 8.8a4.5 4.5 0 0 1 8.8-1.2 4.5 4.5 0 0 1 8.8 1.2Z" /></svg>
+    </button>
+  </div>
+
+  <div class="material-info">
+    <a class="material-title" [routerLink]="['/material', material.id]">{{ material.title }}</a>
+    <div class="tags"><span class="tag tag-category">{{ material.category }}</span></div>
+    <div class="tags condition-tags">
+      <span class="tag" [class.tag-green]="material.condition === 'Nuevo' || material.condition === 'En buen estado'" [class.tag-amber]="material.condition === 'Seminuevo'" [class.tag-neutral]="material.condition === 'Aceptable' || material.condition === 'Repuestos / Scrap'">{{ material.condition }}</span>
+      <span class="tag" [class.tag-blue]="material.mode === 'Trueque'" [class.tag-amber]="material.mode === 'Precio solidario'" [class.tag-yellow]="material.mode === 'Donación'">{{ material.mode }}</span>
+    </div>
+    <div class="card-footer">
+      <div class="owner"><span class="avatar" [attr.aria-label]="material.owner">{{ material.initials }}</span><span>{{ material.owner }}</span></div>
+      @if (material.price) {
+        <span class="price">S/ {{ material.price }}</span>
+      } @else {
+        <a class="detail-link" [routerLink]="['/material', material.id]">Ver detalles <span aria-hidden="true">→</span></a>
+      }
+    </div>
+  </div>
+</article>
