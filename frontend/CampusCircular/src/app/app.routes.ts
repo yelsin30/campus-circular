@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { MainLayout } from './layouts/main-layout/main-layout';
-import { AdminPage } from './pages/admin/admin';
 import { ExchangesPage } from './pages/exchanges/exchanges';
 import { HomePage } from './pages/home/home';
 import { ImpactPage } from './pages/impact/impact';
@@ -22,5 +21,5 @@ export const routes: Routes = [
 			{ path: 'impacto', component: ImpactPage },
 		],
 	},
-	{ path: 'admin', component: AdminPage },
+	{ path: 'admin', loadComponent: () => import('./pages/admin/admin').then((module) => module.AdminPage) },
 ];

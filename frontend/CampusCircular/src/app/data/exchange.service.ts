@@ -1,6 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { ExchangeMode } from './material-catalog';
 import { MaterialCatalogService } from './material-catalog.service';
+import { ModerationService } from './moderation.service';
 
 export type ExchangeStatus = 'Pendiente' | 'En negociación' | 'Aceptado' | 'Rechazado' | 'Cancelado' | 'Completado';
 export type ExchangeTab = 'received' | 'sent' | 'completed';
@@ -37,7 +38,7 @@ export interface ExchangeRequest {
 
 export type CreateExchangeResult =
   | { success: true; request: ExchangeRequest }
-  | { success: false; reason: 'own-material' | 'duplicate' | 'not-found' };
+  | { success: false; reason: 'own-material' | 'duplicate' | 'not-found' | 'suspended' | 'owner-suspended' };
 
 const CURRENT_USER = 'María Pérez';
 const ACTIVE_STATUSES: ExchangeStatus[] = ['Pendiente', 'En negociación', 'Aceptado'];
@@ -45,6 +46,7 @@ const ACTIVE_STATUSES: ExchangeStatus[] = ['Pendiente', 'En negociación', 'Acep
 @Injectable({ providedIn: 'root' })
 export class ExchangeService {
   private readonly catalog = inject(MaterialCatalogService);
+  private readonly moderation = inject(ModerationService);
   private readonly requestsSignal = signal<ExchangeRequest[]>(this.createDemoRequests());
   readonly requests = this.requestsSignal.asReadonly();
   readonly currentUser = CURRENT_USER;
@@ -63,9 +65,11 @@ export class ExchangeService {
   }
 
   createRequest(materialId: string, message = '', offeredMaterial = ''): CreateExchangeResult {
-    const material = this.catalog.findById(materialId);
+    const material = this.catalog.findPublicById(materialId);
     if (!material) return { success: false, reason: 'not-found' };
     if (material.owner === CURRENT_USER) return { success: false, reason: 'own-material' };
+    if (this.moderation.isUserSuspended(CURRENT_USER)) return { success: false, reason: 'suspended' };
+    if (this.moderation.isUserSuspended(material.owner)) return { success: false, reason: 'owner-suspended' };
 
     const duplicate = this.requestsSignal().some((request) =>
       request.materialId === materialId

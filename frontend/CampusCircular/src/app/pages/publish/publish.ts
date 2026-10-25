@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ExchangeMode, MaterialArt, MaterialCategory, MarketplaceMaterial } from '../../data/material-catalog';
 import { MaterialCatalogService } from '../../data/material-catalog.service';
+import { ModerationService } from '../../data/moderation.service';
 import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 
 @Component({
@@ -17,6 +18,7 @@ import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 export class PublishPage {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly catalog = inject(MaterialCatalogService);
+  private readonly moderation = inject(ModerationService);
   private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
@@ -84,6 +86,11 @@ export class PublishPage {
   async publish(): Promise<void> {
     this.submitted = true;
     this.form.markAllAsTouched();
+
+    if (this.moderation.isUserSuspended('María Pérez')) {
+      this.publishMessage = 'La cuenta de demostración está suspendida y no puede publicar materiales.';
+      return;
+    }
 
     if (this.form.invalid || this.photoErrors.length > 0) {
       this.publishMessage = 'Revisa los campos obligatorios y corrige los archivos indicados antes de publicar.';

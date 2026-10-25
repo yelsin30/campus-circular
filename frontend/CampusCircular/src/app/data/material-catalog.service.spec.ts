@@ -28,7 +28,7 @@ describe('MaterialCatalogService', () => {
 
     service.publish(material);
 
-    expect(service.findById('demo-publication')).toBe(material);
-    expect(service.materials()[0]).toBe(material);
+    expect(service.findById('demo-publication')).toMatchObject({ ...material, publicationStatus: 'Activa' });
+    expect(service.materials()[0].id).toBe(material.id);
   });
 });

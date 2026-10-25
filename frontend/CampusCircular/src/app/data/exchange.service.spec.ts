@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ExchangeService } from './exchange.service';
 import { MaterialCatalogService } from './material-catalog.service';
+import { ModerationService } from './moderation.service';
 
 describe('ExchangeService', () => {
   let service: ExchangeService;
@@ -36,5 +37,18 @@ describe('ExchangeService', () => {
     if (!request) return;
     expect(service.rate(request.id, request.owner, 5, 'Excelente')).toBe(true);
     expect(service.rate(request.id, request.owner, 4, 'Duplicada')).toBe(false);
+  });
+
+  it('blocks requests when the requester or publication owner is suspended or the material is hidden', () => {
+    const moderation = TestBed.inject(ModerationService);
+    expect(moderation.suspendUser('user-ana')).toBe(true);
+    expect(service.createRequest('calculo-diferencial')).toEqual({ success: false, reason: 'owner-suspended' });
+
+    expect(moderation.reactivateUser('user-ana')).toBe(true);
+    expect(moderation.moderatePublication('calculo-diferencial', 'Oculta')).toBe(true);
+    expect(service.createRequest('calculo-diferencial')).toEqual({ success: false, reason: 'not-found' });
+
+    expect(moderation.suspendUser('user-maria')).toBe(true);
+    expect(service.createRequest('calculadora-cientifica')).toEqual({ success: false, reason: 'suspended' });
   });
 });

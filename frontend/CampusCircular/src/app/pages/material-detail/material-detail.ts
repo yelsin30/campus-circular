@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MarketplaceMaterial } from '../../data/material-catalog';
 import { MaterialCatalogService } from '../../data/material-catalog.service';
 import { ExchangeService } from '../../data/exchange.service';
+import { ModerationService } from '../../data/moderation.service';
 import { MaterialArtwork } from '../../shared/material-artwork/material-artwork';
 import { MaterialGallery } from './material-gallery/material-gallery';
 import { MaterialInformation } from './material-information/material-information';
@@ -24,6 +25,7 @@ export class MaterialDetailPage implements OnInit {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly catalog = inject(MaterialCatalogService);
   private readonly exchanges = inject(ExchangeService);
+  private readonly moderation = inject(ModerationService);
 
   material: MarketplaceMaterial | undefined;
   activeGalleryView = 0;
@@ -37,12 +39,14 @@ export class MaterialDetailPage implements OnInit {
   shareMessage = '';
   modalConfirmation = '';
   requestCreated = false;
+  reportCreated = false;
+  reportUnavailable = false;
 
   ngOnInit(): void {
     this.route.paramMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
-        this.material = this.catalog.findById(params.get('id'));
+        this.material = this.catalog.findPublicById(params.get('id'));
         this.activeGalleryView = 0;
         this.isSaved = false;
         this.shareMessage = '';
@@ -58,6 +62,8 @@ export class MaterialDetailPage implements OnInit {
     this.otherOfferedMaterial = '';
     this.modalConfirmation = '';
     this.requestCreated = false;
+    this.reportCreated = false;
+    this.reportUnavailable = false;
     this.activeModal = 'request';
   }
 
@@ -66,6 +72,8 @@ export class MaterialDetailPage implements OnInit {
     this.reportDetails = '';
     this.modalConfirmation = '';
     this.requestCreated = false;
+    this.reportCreated = false;
+    this.reportUnavailable = false;
     this.activeModal = 'report';
   }
 
@@ -79,7 +87,11 @@ export class MaterialDetailPage implements OnInit {
         ? 'No puedes solicitar una publicación propia.'
         : result.reason === 'duplicate'
           ? 'Ya tienes una solicitud activa para este material. Puedes revisarla en Mis intercambios.'
-          : 'No se encontró el material para crear la solicitud.';
+          : result.reason === 'suspended'
+            ? 'La cuenta de demostración está suspendida y no puede crear solicitudes.'
+            : result.reason === 'owner-suspended'
+              ? 'El propietario de esta publicación está suspendido y no puede recibir nuevas solicitudes.'
+            : 'No se encontró el material para crear la solicitud.';
       return;
     }
     this.requestCreated = true;
@@ -87,7 +99,17 @@ export class MaterialDetailPage implements OnInit {
   }
 
   submitReport(): void {
-    this.modalConfirmation = 'Reporte de demostración preparado. No se envió a un servidor.';
+    if (!this.material) return;
+    const report = this.moderation.createReport(this.material.id, 'María P.', this.reportReason, this.reportDetails);
+    if (!report) {
+      this.reportUnavailable = true;
+      this.modalConfirmation = 'Esta publicación ya no está disponible para reportar.';
+      return;
+    }
+    this.reportCreated = report.created;
+    this.modalConfirmation = report.created
+      ? `El reporte ${report.report.id} se agregó al panel de administración en modo demostración.`
+      : `Ya existe el reporte pendiente ${report.report.id} para este motivo y artículo.`;
   }
 
   async shareMaterial(): Promise<void> {

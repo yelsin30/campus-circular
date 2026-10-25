@@ -43,7 +43,7 @@ export class HomePage {
 
   get filteredMaterials() {
     const query = this.searchTerm.trim().toLocaleLowerCase('es');
-    const filtered = this.catalog.materials().filter((material) => {
+    const filtered = this.catalog.publicMaterials().filter((material) => {
       const matchesCategory = this.selectedCategory === 'Todos' || material.category === this.selectedCategory;
       const matchesCareer = this.selectedCareer === 'Todas las carreras' || material.career.startsWith(this.selectedCareer);
       const matchesConditions = this.selectedConditions.size === 0 || this.selectedConditions.has(material.condition);

@@ -1,0 +1,116 @@
+<div class="admin-shell">
+  <aside class="admin-sidebar" [class.menu-open]="isMobileMenuOpen">
+    <a class="admin-brand" routerLink="/inicio" aria-label="Campus Circular, ir al marketplace"><span class="brand-mark"><span>C</span></span><span>Campus Circular</span></a>
+    <nav class="admin-navigation" aria-label="Administración">
+      @for (item of menuItems; track item.id) {
+        <button type="button" [class.active]="section === item.id" (click)="selectSection(item.id)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            @switch (item.icon) {
+              @case ('dashboard') { <path d="M4 4h6v6H4zM14 4h6v4h-6zM14 12h6v8h-6zM4 14h6v6H4z" /> }
+              @case ('publications') { <path d="M12 3 22 20H2L12 3Z"/><path d="M12 9v5m0 3h.01"/> }
+              @case ('reports') { <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/> }
+              @case ('users') { <circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 5v1"/> }
+              @case ('history') { <path d="M4 7v5h5M5 12a8 8 0 1 0 2-5"/><path d="M12 7v5l3 2"/> }
+            }
+          </svg>
+          <span>{{ item.label }}</span>
+          @if (item.id === 'reports' && moderation.pendingReports() > 0) { <span class="nav-count">{{ moderation.pendingReports() }}</span> }
+        </button>
+      }
+      <a class="back-link" routerLink="/inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Volver al marketplace</a>
+    </nav>
+    <p class="sidebar-note">Panel exclusivo para administradores<br /><strong>Modo de demostración</strong></p>
+  </aside>
+
+  <div class="admin-main">
+    <header class="admin-topbar">
+      <button type="button" class="mobile-menu-button" aria-label="Abrir menú de administración" [attr.aria-expanded]="isMobileMenuOpen" (click)="isMobileMenuOpen = !isMobileMenuOpen"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="topbar-spacer"></div>
+      <span class="demo-chip">Administración · Demo</span>
+      <button type="button" class="notification-button" aria-label="Notificaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button>
+      <div class="admin-profile"><span>AD</span><strong>Administrador UPN</strong></div>
+    </header>
+
+    <main class="admin-content">
+      <div class="content-heading"><div><p class="breadcrumb">Administración <span>›</span> {{ heading }}</p><h1>{{ section === 'dashboard' ? 'Panel de administración' : heading }}</h1><p class="page-description">{{ section === 'dashboard' ? 'Gestiona las publicaciones, los usuarios y la seguridad de la comunidad Campus Circular.' : section === 'publications' ? 'Revisa el estado y la visibilidad de los materiales publicados.' : section === 'reports' ? 'Revisa y gestiona el contenido reportado por la comunidad universitaria.' : section === 'users' ? 'Consulta y administra las cuentas de demostración de la comunidad.' : 'Consulta las acciones administrativas realizadas en esta sesión.' }}</p></div><span class="mode-label">Datos locales de demostración</span></div>
+
+      @if (notice) { <p class="admin-notice" role="status">{{ notice }}</p> }
+
+      @if (section === 'dashboard') {
+        <section class="stats-grid" aria-label="Indicadores administrativos">
+          <article class="stat-card"><span class="stat-icon yellow-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h8M8 16h5"/></svg></span><div><strong>{{ moderation.activePublications() }}</strong><span>Publicaciones activas</span></div></article>
+          <article class="stat-card"><span class="stat-icon red-icon"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span><div><strong>{{ moderation.pendingReports() }}</strong><span>Reportes pendientes</span></div></article>
+          <article class="stat-card"><span class="stat-icon blue-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 5v1"/></svg></span><div><strong>{{ moderation.registeredUsers() }}</strong><span>Usuarios registrados</span></div></article>
+          <article class="stat-card"><span class="stat-icon green-icon"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span><div><strong>{{ moderation.moderatedPublications() }}</strong><span>Acciones de moderación</span></div></article>
+        </section>
+        <div class="dashboard-grid">
+          <section class="panel-card"><div class="panel-heading"><div><h2>Reportes recientes</h2><p>Requieren atención del equipo</p></div><button type="button" class="link-button" (click)="selectSection('reports')">Ver reportes</button></div>
+            @for (report of moderation.reports().slice(0, 4); track report.id) {
+              @if (moderation.materialForReport(report); as material) {
+                <button type="button" class="recent-report" (click)="reviewReport(report)"><span class="recent-material-icon" [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><span class="recent-report-copy"><strong>{{ material.title }}</strong><small>{{ report.reason }} · {{ report.reporter }}</small></span><span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span></button>
+              }
+            }
+          </section>
+          <section class="panel-card quick-panel"><div class="panel-heading"><div><h2>Accesos rápidos</h2><p>Administración del marketplace</p></div></div><button type="button" (click)="selectSection('publications')"><span class="quick-icon">▤</span><span><strong>Gestionar publicaciones</strong><small>Ocultar, restaurar o retirar materiales</small></span><b>›</b></button><button type="button" (click)="selectSection('users')"><span class="quick-icon">♙</span><span><strong>Gestionar usuarios</strong><small>Consultar estado de las cuentas</small></span><b>›</b></button><button type="button" (click)="selectSection('history')"><span class="quick-icon">◷</span><span><strong>Ver historial</strong><small>Acciones registradas en esta sesión</small></span><b>›</b></button></section>
+        </div>
+        <p class="demo-disclaimer">Los indicadores y registros visibles son datos locales de demostración, no métricas verificadas de producción.</p>
+      }
+
+      @if (section === 'publications') {
+        <section class="table-panel"><div class="table-toolbar"><div class="filter-tabs"><button type="button" [class.active]="publicationFilter === 'Todas'" (click)="publicationFilter = 'Todas'">Todas ({{ catalog.materials().length }})</button><button type="button" [class.active]="publicationFilter === 'Activa'" (click)="publicationFilter = 'Activa'">Activas</button><button type="button" [class.active]="publicationFilter === 'Oculta'" (click)="publicationFilter = 'Oculta'">Ocultas</button><button type="button" [class.active]="publicationFilter === 'Eliminada'" (click)="publicationFilter = 'Eliminada'">Eliminadas</button></div><label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar publicación..." [value]="publicationSearch" (input)="updatePublicationSearch($event)"/></label></div>
+          <div class="table-scroll"><table><thead><tr><th>ID</th><th>Material</th><th>Categoría</th><th>Propietario</th><th>Publicación</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+            @for (material of publications; track material.id) {
+              <tr><td class="id-cell">{{ material.id }}</td><td><div class="material-cell"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><strong>{{ material.title }}</strong></div></td><td>{{ material.category }}</td><td>{{ material.owner }}</td><td>{{ formatPublicationDate(material.publishedAt, material.publishedLabel) }}</td><td><span class="status-pill" [class]="'status-pill ' + publicationStatusClass(material.id)">{{ publicationStatus(material.id) }}</span></td><td><div class="table-actions"><button type="button" class="view-button" (click)="showMaterial(material.id)">Ver</button>@if (publicationStatus(material.id) === 'Activa') { <button type="button" class="action-button warning" (click)="requestHidePublication(material.id)">Ocultar</button><button type="button" class="action-button danger" (click)="requestDelete(material.id)">Eliminar</button> } @else if (publicationStatus(material.id) === 'Oculta') { <button type="button" class="action-button restore" (click)="restorePublication(material.id)">Restaurar</button><button type="button" class="action-button danger" (click)="requestDelete(material.id)">Eliminar</button> }</div></td></tr>
+            } @empty { <tr><td colspan="7" class="empty-cell">No se encontraron publicaciones.</td></tr> }
+          </tbody></table></div><p class="table-footnote">Las publicaciones eliminadas se marcan en el catálogo de demostración; se conserva el registro local.</p>
+        </section>
+      }
+
+      @if (section === 'reports') {
+        <section class="table-panel"><div class="table-toolbar"><div class="filter-tabs"><button type="button" [class.active]="reportFilter === 'Todas'" (click)="reportFilter = 'Todas'">Todas ({{ moderation.reports().length }})</button><button type="button" [class.active]="reportFilter === 'Pendientes'" (click)="reportFilter = 'Pendientes'">Pendientes ({{ moderation.pendingReports() }})</button><button type="button" [class.active]="reportFilter === 'Resueltas'" (click)="reportFilter = 'Resueltas'">Resueltas</button></div><label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar publicación..." [value]="reportSearch" (input)="updateReportSearch($event)"/></label></div>
+          <div class="table-scroll"><table><thead><tr><th>ID</th><th>Material</th><th>Usuario</th><th>Motivo</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+            @for (report of reports; track report.id) {
+              @if (moderation.materialForReport(report); as material) {
+                <tr><td class="id-cell">{{ report.id }}@if (report.demo) { <small>Demo</small> }</td><td><div class="material-cell"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><strong>{{ material.title }}</strong></div></td><td>{{ report.reporter }}</td><td>{{ report.reason }}</td><td>{{ formatDate(report.reportedAt) }}</td><td><span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span></td><td>@if (report.status === 'Pendiente' || report.status === 'En revisión') { <button type="button" class="action-button review" (click)="reviewReport(report)">{{ report.status === 'Pendiente' ? 'Revisar' : 'Continuar' }}</button> } @else { <button type="button" class="view-button" (click)="reviewReport(report)">Ver</button> }</td></tr>
+              }
+            } @empty { <tr><td colspan="7" class="empty-cell">No hay reportes en este filtro.</td></tr> }
+          </tbody></table></div><p class="table-footnote">Las acciones de moderación son locales y se registran en el historial de esta sesión.</p>
+        </section>
+      }
+
+      @if (section === 'users') {
+        <section class="table-panel"><div class="table-toolbar"><div><h2 class="table-title">Usuarios de la comunidad</h2><p class="table-subtitle">{{ moderation.users().length }} cuentas de demostración</p></div></div><div class="table-scroll"><table><thead><tr><th>ID</th><th>Usuario</th><th>Correo institucional</th><th>Rol</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead><tbody>
+          @for (user of moderation.users(); track user.id) { <tr><td class="id-cell">{{ user.id }}</td><td><strong>{{ user.name }}</strong></td><td>{{ user.email }}</td><td>{{ user.role }}</td><td><span class="status-pill" [class]="'status-pill ' + userStatusClass(user.status)">{{ user.status }}</span></td><td>{{ formatDate(user.registeredAt) }}</td><td><div class="table-actions"><button type="button" class="view-button" (click)="showUser(user.id)">Ver</button>@if (user.role === 'Estudiante' && user.status === 'Activo') { <button type="button" class="action-button danger" (click)="requestSuspend(user.id)">Suspender</button> } @else if (user.status === 'Suspendido') { <button type="button" class="action-button restore" (click)="reactivateUser(user.id)">Reactivar</button> }</div></td></tr> }
+        </tbody></table></div><p class="table-footnote">Suspender bloquea las nuevas publicaciones y solicitudes del usuario demo. No elimina sus intercambios históricos. Esto no sustituye autorización backend.</p></section>
+      }
+
+      @if (section === 'history') {
+        <section class="table-panel"><div class="table-toolbar"><div><h2 class="table-title">Historial de moderación</h2><p class="table-subtitle">Acciones realizadas durante la sesión actual</p></div></div><div class="table-scroll"><table><thead><tr><th>ID</th><th>Administrador</th><th>Acción</th><th>Elemento afectado</th><th>Fecha y hora</th><th>Descripción</th></tr></thead><tbody>
+          @for (entry of moderation.logs(); track entry.id) { <tr><td class="id-cell">{{ entry.id }}</td><td>{{ entry.admin }}</td><td><span class="log-action">{{ entry.action }}</span></td><td>{{ entry.targetLabel }}</td><td>{{ formatDateTime(entry.createdAt) }}</td><td>{{ entry.description }}</td></tr> } @empty { <tr><td colspan="6" class="empty-cell">Aún no hay acciones administrativas registradas.</td></tr> }
+        </tbody></table></div></section>
+      }
+
+      <p class="security-note">Modo de demostración. Las acciones se guardan únicamente en memoria; los permisos reales deben validarse en el backend.</p>
+    </main>
+  </div>
+</div>
+
+@if (selectedReport; as report) {
+  <div class="admin-modal-backdrop" (click)="closeDialogs()"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="closeDialogs()">×</button><p class="dialog-eyebrow">{{ report.id }} · {{ report.status }}</p><h2 id="review-title">Revisar publicación reportada</h2>@if (moderation.materialForReport(report); as material) { <div class="dialog-material"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><div><strong>{{ material.title }}</strong><small>{{ material.owner }} · {{ material.category }} · {{ publicationStatus(material.id) }}</small></div></div> }<dl class="report-detail-list"><div><dt>Reportado por</dt><dd>{{ report.reporter }}</dd></div><div><dt>Motivo</dt><dd>{{ report.reason }}</dd></div><div><dt>Fecha</dt><dd>{{ formatDateTime(report.reportedAt) }}</dd></div>@if (report.details) { <div><dt>Detalle</dt><dd>{{ report.details }}</dd></div> }</dl><div class="dialog-actions">@if (report.status === 'Pendiente' || report.status === 'En revisión') { <button type="button" class="action-button danger" (click)="requestHideReported(report)">Ocultar y resolver</button><button type="button" class="action-button" (click)="discardReport(report); closeDialogs()">Descartar</button><button type="button" class="primary-action" (click)="resolveReport(report); closeDialogs()">Resolver</button> } @else { <button type="button" class="primary-action" (click)="closeDialogs()">Cerrar</button> }</div></section></div>
+}
+
+@if (confirmation; as pendingConfirmation) {
+  <div class="admin-modal-backdrop" (click)="confirmation = null"><section class="admin-dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cancelar" (click)="confirmation = null">×</button><h2 id="confirm-title">{{ pendingConfirmation.type === 'suspend' ? 'Suspender usuario' : pendingConfirmation.type === 'delete' ? 'Eliminar publicación' : 'Ocultar publicación' }}</h2><p>{{ pendingConfirmation.type === 'suspend' ? 'La cuenta no podrá crear nuevas publicaciones ni solicitudes en este modo de demostración.' : pendingConfirmation.type === 'delete' ? 'La publicación dejará de estar disponible. Su registro histórico se conservará.' : 'La publicación dejará de aparecer en el marketplace hasta que se restaure.' }}</p><div class="dialog-actions"><button type="button" class="action-button" (click)="confirmation = null">Cancelar</button><button type="button" class="primary-action" (click)="confirmAction()">Confirmar acción</button></div></section></div>
+}
+
+@if (selectedMaterialId; as materialId) {
+  @if (catalog.findById(materialId); as material) {
+    <div class="admin-modal-backdrop" (click)="selectedMaterialId = null"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="material-dialog-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedMaterialId = null">×</button><p class="dialog-eyebrow">{{ material.category }} · {{ publicationStatus(material.id) }}</p><h2 id="material-dialog-title">{{ material.title }}</h2><p>{{ material.description }}</p><dl class="report-detail-list"><div><dt>Propietario</dt><dd>{{ material.owner }}</dd></div><div><dt>Carrera</dt><dd>{{ material.career }}</dd></div><div><dt>Estado y modalidad</dt><dd>{{ material.condition }} · {{ material.mode }}</dd></div><div><dt>Precio</dt><dd>{{ material.price === undefined ? 'No aplica' : 'S/ ' + material.price }}</dd></div></dl><button type="button" class="primary-action full-width" (click)="selectedMaterialId = null">Cerrar</button></section></div>
+  }
+}
+
+@if (selectedUserId; as userId) {
+  @if (moderation.userById(userId); as user) {
+    <div class="admin-modal-backdrop" (click)="selectedUserId = null"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="user-dialog-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedUserId = null">×</button><p class="dialog-eyebrow">{{ user.role }} · {{ user.status }}</p><h2 id="user-dialog-title">{{ user.name }}</h2><dl class="report-detail-list"><div><dt>Correo institucional</dt><dd>{{ user.email }}</dd></div><div><dt>Fecha de registro</dt><dd>{{ formatDate(user.registeredAt) }}</dd></div><div><dt>Estado</dt><dd>{{ user.status }}</dd></div></dl><button type="button" class="primary-action full-width" (click)="selectedUserId = null">Cerrar</button></section></div>
+  }
+}

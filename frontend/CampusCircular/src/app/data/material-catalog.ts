@@ -2,6 +2,7 @@ export type MaterialCategory = 'Libros' | 'Apuntes' | 'Equipos' | 'Materiales' |
 export type MaterialCondition = 'Nuevo' | 'Seminuevo' | 'En buen estado' | 'Aceptable' | 'Repuestos / Scrap';
 export type ExchangeMode = 'Trueque' | 'Donación' | 'Precio solidario';
 export type MaterialArt = 'calculus' | 'calculator' | 'notes' | 'backpack' | 'algorithms' | 'tablet' | 'arduino';
+export type PublicationStatus = 'Activa' | 'Oculta' | 'Eliminada';
 
 export interface MarketplaceMaterial {
   id: string;
@@ -24,6 +25,7 @@ export interface MarketplaceMaterial {
   ratingCount: number;
   offeredExamples: string[];
   images?: string[];
+  publicationStatus?: PublicationStatus;
 }
 
 export const MATERIAL_CATALOG: MarketplaceMaterial[] = [
