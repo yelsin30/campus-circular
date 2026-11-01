@@ -38,7 +38,7 @@ export interface ExchangeRequest {
 
 export type CreateExchangeResult =
   | { success: true; request: ExchangeRequest }
-  | { success: false; reason: 'own-material' | 'duplicate' | 'not-found' | 'suspended' | 'owner-suspended' };
+  | { success: false; reason: 'own-material' | 'duplicate' | 'not-found' | 'suspended' };
 
 const CURRENT_USER = 'María Pérez';
 const ACTIVE_STATUSES: ExchangeStatus[] = ['Pendiente', 'En negociación', 'Aceptado'];
@@ -69,7 +69,6 @@ export class ExchangeService {
     if (!material) return { success: false, reason: 'not-found' };
     if (material.owner === CURRENT_USER) return { success: false, reason: 'own-material' };
     if (this.moderation.isUserSuspended(CURRENT_USER)) return { success: false, reason: 'suspended' };
-    if (this.moderation.isUserSuspended(material.owner)) return { success: false, reason: 'owner-suspended' };
 
     const duplicate = this.requestsSignal().some((request) =>
       request.materialId === materialId

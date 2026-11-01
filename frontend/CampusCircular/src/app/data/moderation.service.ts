@@ -114,6 +114,28 @@ export class ModerationService {
     return true;
   }
 
+  hideReportedPublication(reportId: string): boolean {
+    const report = this.findReport(reportId);
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
+
+    const material = this.catalog.findById(report.materialId);
+    if (!material || this.getPublicationStatus(material) === 'Eliminada') return false;
+    if (this.getPublicationStatus(material) !== 'Oculta' && !this.moderatePublication(material.id, 'Oculta')) return false;
+
+    return this.resolveReport(reportId, 'Publicación ocultada al resolver el reporte.');
+  }
+
+  deleteReportedPublication(reportId: string): boolean {
+    const report = this.findReport(reportId);
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
+
+    const material = this.catalog.findById(report.materialId);
+    if (!material) return false;
+    if (this.getPublicationStatus(material) !== 'Eliminada' && !this.moderatePublication(material.id, 'Eliminada')) return false;
+
+    return this.resolveReport(reportId, 'Publicación eliminada al resolver el reporte.');
+  }
+
   moderatePublication(materialId: string, status: PublicationStatus): boolean {
     const material = this.catalog.findById(materialId);
     if (!material || this.getPublicationStatus(material) === status) return false;

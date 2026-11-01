@@ -40,7 +40,6 @@ export class MaterialDetailPage implements OnInit {
   modalConfirmation = '';
   requestCreated = false;
   reportCreated = false;
-  reportUnavailable = false;
 
   ngOnInit(): void {
     this.route.paramMap
@@ -63,7 +62,6 @@ export class MaterialDetailPage implements OnInit {
     this.modalConfirmation = '';
     this.requestCreated = false;
     this.reportCreated = false;
-    this.reportUnavailable = false;
     this.activeModal = 'request';
   }
 
@@ -73,7 +71,6 @@ export class MaterialDetailPage implements OnInit {
     this.modalConfirmation = '';
     this.requestCreated = false;
     this.reportCreated = false;
-    this.reportUnavailable = false;
     this.activeModal = 'report';
   }
 
@@ -89,8 +86,6 @@ export class MaterialDetailPage implements OnInit {
           ? 'Ya tienes una solicitud activa para este material. Puedes revisarla en Mis intercambios.'
           : result.reason === 'suspended'
             ? 'La cuenta de demostración está suspendida y no puede crear solicitudes.'
-            : result.reason === 'owner-suspended'
-              ? 'El propietario de esta publicación está suspendido y no puede recibir nuevas solicitudes.'
             : 'No se encontró el material para crear la solicitud.';
       return;
     }
@@ -102,7 +97,6 @@ export class MaterialDetailPage implements OnInit {
     if (!this.material) return;
     const report = this.moderation.createReport(this.material.id, 'María P.', this.reportReason, this.reportDetails);
     if (!report) {
-      this.reportUnavailable = true;
       this.modalConfirmation = 'Esta publicación ya no está disponible para reportar.';
       return;
     }

@@ -7,7 +7,7 @@ import { MaterialArtwork } from '../../shared/material-artwork/material-artwork'
 type AdminSection = 'dashboard' | 'publications' | 'reports' | 'users' | 'history';
 type ReportFilter = 'Todas' | 'Pendientes' | 'Resueltas';
 type PublicationFilter = 'Todas' | 'Activa' | 'Oculta' | 'Eliminada';
-type ConfirmationAction = { type: 'hide' | 'hidePublication' | 'delete' | 'suspend'; id: string } | null;
+type ConfirmationAction = { type: 'hide' | 'hidePublication' | 'delete' | 'deleteReported' | 'suspend'; id: string } | null;
 
 @Component({
   selector: 'app-admin-page',
@@ -115,8 +115,11 @@ export class AdminPage {
   }
 
   requestHideReported(report: PublicationReport): void {
-    this.selectedReport = report;
     this.confirmation = { type: 'hide', id: report.id };
+  }
+
+  requestDeleteReported(report: PublicationReport): void {
+    this.confirmation = { type: 'deleteReported', id: report.id };
   }
 
   requestHidePublication(materialId: string): void {
@@ -143,17 +146,15 @@ export class AdminPage {
     if (!this.confirmation) return;
     const { type, id } = this.confirmation;
     if (type === 'hide') {
-      const report = this.moderation.findReport(id);
-      if (report) {
-        this.moderation.moderatePublication(report.materialId, 'Oculta');
-        this.moderation.resolveReport(report.id, 'Publicación ocultada al resolver el reporte.');
-        this.notice = 'La publicación se ocultó y el reporte quedó resuelto.';
-      }
+      this.notice = this.moderation.hideReportedPublication(id) ? 'La publicación se ocultó y el reporte quedó resuelto.' : 'No se pudo ocultar la publicación reportada.';
       this.selectedReport = null;
     } else if (type === 'hidePublication') {
       this.notice = this.moderation.moderatePublication(id, 'Oculta') ? 'Publicación ocultada del marketplace.' : 'No se pudo ocultar la publicación.';
     } else if (type === 'delete') {
       this.notice = this.moderation.moderatePublication(id, 'Eliminada') ? 'Publicación eliminada del marketplace; el registro se conserva.' : 'No se pudo eliminar la publicación.';
+    } else if (type === 'deleteReported') {
+      this.notice = this.moderation.deleteReportedPublication(id) ? `Publicación eliminada y reporte ${id} resuelto.` : 'No se pudo eliminar la publicación reportada.';
+      this.selectedReport = null;
     } else {
       this.notice = this.moderation.suspendUser(id) ? 'Usuario suspendido. No podrá publicar ni crear solicitudes en esta demostración.' : 'No se puede suspender esta cuenta.';
     }

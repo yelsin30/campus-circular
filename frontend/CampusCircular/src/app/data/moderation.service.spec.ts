@@ -45,6 +45,24 @@ describe('ModerationService', () => {
     expect(moderation.createReport('calculadora-cientifica', 'Otra persona', 'Información falsa')).toBeNull();
   });
 
+  it('hides a reported publication and resolves the report in one moderation action', () => {
+    expect(moderation.hideReportedPublication('R-003')).toBe(true);
+    expect(catalog.findPublicById('libro-algoritmos')).toBeUndefined();
+    expect(catalog.findById('libro-algoritmos')?.publicationStatus).toBe('Oculta');
+    expect(moderation.findReport('R-003')?.status).toBe('Resuelto');
+    expect(moderation.logs().map((entry) => entry.action)).toEqual(['Reporte resuelto', 'Publicación ocultada']);
+    expect(moderation.hideReportedPublication('R-003')).toBe(false);
+  });
+
+  it('deletes a reported publication and resolves the report in one moderation action', () => {
+    expect(moderation.deleteReportedPublication('R-003')).toBe(true);
+    expect(catalog.findPublicById('libro-algoritmos')).toBeUndefined();
+    expect(catalog.findById('libro-algoritmos')?.publicationStatus).toBe('Eliminada');
+    expect(moderation.findReport('R-003')?.status).toBe('Resuelto');
+    expect(moderation.logs().map((entry) => entry.action)).toEqual(['Reporte resuelto', 'Publicación eliminada']);
+    expect(moderation.deleteReportedPublication('R-003')).toBe(false);
+  });
+
   it('suspends a student but never the demo administrator', () => {
     expect(moderation.suspendUser('admin-upn')).toBe(false);
     expect(moderation.suspendUser('user-maria')).toBe(true);
