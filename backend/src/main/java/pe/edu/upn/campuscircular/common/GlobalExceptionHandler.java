@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -43,6 +44,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(response);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleStatus(
+            ResponseStatusException ex,
+            HttpServletRequest request) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        ApiError response = new ApiError(
+            Instant.now(),
+            status.value(),
+            status.name(),
+            ex.getReason() == null ? status.getReasonPhrase() : ex.getReason(),
+            request.getRequestURI(),
+            List.of());
+        return ResponseEntity.status(status).body(response);
     }
 
     // Errores inesperados del servidor
