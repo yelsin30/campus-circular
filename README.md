@@ -38,3 +38,16 @@ campus-circular/
 * JDK 17+ y Apache Maven
 * Node.js v18+ y Angular CLI (`npm install -g @angular/cli`)
 * Docker y Docker Compose (para MySQL y MailHog)
+
+### Backend local
+1. Levanta MySQL y MailHog con `docker compose up -d`.
+2. Define `JWT_SECRET` como una variable de entorno con al menos 32 bytes UTF-8.
+   No guardes su valor en el repositorio. Por ejemplo, en PowerShell:
+   `$env:JWT_SECRET = "<secreto-local-de-32-o-mas-bytes>"`.
+3. Inicia Spring Boot desde `backend` con `.\mvnw.cmd spring-boot:run`.
+
+El backend envía los códigos de verificación a MailHog por SMTP en el puerto
+1025; se pueden consultar en [http://localhost:8025](http://localhost:8025).
+El catálogo público admite paginación con `page` y `size`; crear publicaciones
+requiere autenticación y acepta `categoryId`, `titulo`, `descripcion`,
+`condicion`, `modalidad` y `precioSolidario` (máximo S/ 80.00).
