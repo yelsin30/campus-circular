@@ -1,0 +1,31 @@
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow">MARKETPLACE UNIVERSITARIO · UPN</p>
+    <h1 id="hero-title">Encuentra materiales<br class="desktop-break" /> que impulsan tu aprendizaje</h1>
+    <p class="hero-description">Intercambia, dona o consigue materiales a un precio solidario.<br class="desktop-break" /> Juntos construimos un campus más sostenible.</p>
+
+    <label class="search-box">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+      <input type="search" [value]="searchTerm" (input)="updateSearch($event)" placeholder="Buscar libros, apuntes, calculadoras..." aria-label="Buscar materiales" />
+      <button type="button" aria-label="Buscar materiales">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+      </button>
+    </label>
+  </div>
+
+  <div class="hero-art" aria-hidden="true">
+    <div class="hero-sun"></div>
+    <svg viewBox="0 0 230 190" role="presentation">
+      <path class="student-hair" d="M102 46c1-24 19-37 39-34 20 3 28 22 24 43l-12 30-48-4-8-35Z" />
+      <path class="student-neck" d="M122 76h23v28h-23z" />
+      <path class="student-face" d="M105 49c0-22 12-34 28-34 19 0 31 13 31 34 0 22-13 40-30 40s-29-18-29-40Z" />
+      <path class="student-body" d="M102 91c-24 8-37 23-43 53l-6 31h118l-11-53c-4-18-20-31-39-33l-19 14-20-12Z" />
+      <path class="student-arm" d="M143 102c-17 13-29 24-41 37l15 13 40-31-14-19Z" />
+      <g transform="rotate(-13 105 139)">
+        <rect class="laptop-back" x="37" y="108" width="107" height="65" rx="5" />
+        <rect class="laptop-screen" x="42" y="113" width="97" height="54" rx="2" />
+        <path class="laptop-base" d="M34 174h116l-12 10H44l-10-10Z" />
+      </g>
+    </svg>
+  </div>
+</section>

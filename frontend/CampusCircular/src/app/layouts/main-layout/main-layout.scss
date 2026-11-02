@@ -1,0 +1,10 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.main-content {
+  margin-inline: auto;
+  max-width: 1200px;
+  padding: clamp(1.5rem, 5vw, 4rem) clamp(1rem, 5vw, 4rem);
+}

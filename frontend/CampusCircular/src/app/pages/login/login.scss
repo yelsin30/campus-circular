@@ -1,0 +1,58 @@
+:host { display: block; min-height: 100dvh; }
+
+.login-screen { display: grid; grid-template-columns: 44% 56%; min-height: 100dvh; }
+.form-panel { align-items: center; background: #fff; display: flex; justify-content: center; min-height: 100dvh; padding: 2.5rem clamp(1.5rem, 6vw, 5rem); }
+.login-form { max-width: 430px; width: 100%; }
+.mail-icon { align-items: center; background: #fff5cf; border-radius: 1rem; color: #9f7900; display: flex; height: 3.25rem; justify-content: center; margin-bottom: 1.5rem; width: 3.25rem; }
+.mail-icon svg,.send-button svg { fill: none; height: 21px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 21px; }
+.form-eyebrow { color: #a17a00; font-size: 0.68rem; font-weight: 850; letter-spacing: 0.11em; margin: 0 0 0.3rem; }
+.login-form h2 { color: #20242b; font-size: clamp(1.6rem, 2.5vw, 2.1rem); letter-spacing: -0.04em; line-height: 1.12; margin: 0; max-width: 390px; }
+.form-description { color: #7c8491; font-size: 0.88rem; line-height: 1.55; margin: 0.8rem 0 1.8rem; }
+.field-label,.otp-fieldset legend { color: #282d35; display: block; font-size: 0.76rem; font-weight: 750; margin-bottom: 0.55rem; }
+.email-input { background: #fff; border: 1px solid #dce1e8; border-radius: 0.6rem; color: #252a32; font: inherit; font-size: 0.82rem; height: 44px; outline: none; padding: 0 0.8rem; transition: border-color 150ms, box-shadow 150ms; width: 100%; }
+.email-input:focus,.otp-input:focus { border-color: #d2a900; box-shadow: 0 0 0 3px rgb(255 209 0 / 20%); }
+.email-input[aria-invalid='true'] { border-color: #d44b4b; }
+.send-button,.verify-button { align-items: center; border: 0; border-radius: 0.65rem; cursor: pointer; display: flex; font: inherit; font-size: 0.8rem; font-weight: 750; gap: 0.55rem; height: 46px; justify-content: center; margin-top: 0.75rem; width: 100%; }
+.send-button { background: var(--cc-yellow); color: #1e232b; }
+.send-button:hover { background: #f4c600; }
+.send-button svg { height: 16px; width: 16px; }
+.step-divider { align-items: center; color: #a3a9b3; display: flex; font-size: 0.7rem; gap: 0.8rem; margin: 1.65rem 0 1.5rem; text-align: center; }
+.step-divider::before,.step-divider::after { background: #eceef1; content: ''; flex: 1; height: 1px; }
+.otp-fieldset { border: 0; margin: 0; min-width: 0; padding: 0; }
+.otp-fieldset:disabled { opacity: 0.82; }
+.otp-fieldset legend { float: left; padding: 0; width: 100%; }
+.otp-inputs { clear: both; display: grid; gap: 0.55rem; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.otp-input { border: 1px solid #dce1e8; border-radius: 0.55rem; color: #222831; font: inherit; font-size: 1.15rem; font-weight: 700; height: 56px; outline: none; text-align: center; width: 100%; }
+.otp-input:disabled { background: #fafbfc; }
+.verify-button { background: #20252c; color: white; height: 46px; margin-top: 0.9rem; }
+.verify-button svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2; width: 17px; }
+.verify-button:disabled { cursor: not-allowed; opacity: 0.55; }
+.verify-button:not(:disabled):hover { background: #080b0f; }
+.resend-row { align-items: center; color: #858d99; display: flex; font-size: 0.73rem; justify-content: space-between; margin-top: 1rem; }
+.resend-row button { background: none; border: 0; color: #a47d00; cursor: pointer; font: inherit; font-weight: 800; padding: 0; }
+.resend-row button:disabled { cursor: not-allowed; opacity: 0.55; }
+.prototype-note { color: #89909b; font-size: 0.7rem; line-height: 1.45; margin: 1.25rem auto 0; max-width: 360px; text-align: center; }
+.prototype-note strong { color: #59616d; letter-spacing: 0.04em; }
+.error-message { color: #bd3535; font-size: 0.72rem; line-height: 1.35; margin: 0.45rem 0 0; }
+.otp-error { margin-top: 0.55rem; }
+.success-message { color: #287548; font-size: 0.72rem; line-height: 1.35; margin: 0.45rem 0 0; }
+.sr-only { clip: rect(0, 0, 0, 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+
+@media (max-width: 800px) {
+  .login-screen { grid-template-columns: 40% 60%; }
+  .form-panel { padding: 2rem; }
+  .otp-inputs { gap: 0.4rem; }
+}
+
+@media (max-width: 600px) {
+  .login-screen { grid-template-columns: 1fr; }
+  .form-panel { align-items: flex-start; min-height: auto; padding: 2rem 1.25rem 2.5rem; }
+  .mail-icon { height: 2.7rem; margin-bottom: 1.1rem; width: 2.7rem; }
+  .form-description { margin-bottom: 1.35rem; }
+  .otp-input { height: 50px; }
+}
+
+@media (max-width: 360px) {
+  .otp-inputs { gap: 0.3rem; }
+  .otp-input { height: 45px; }
+}

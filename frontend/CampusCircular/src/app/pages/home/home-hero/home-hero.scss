@@ -1,0 +1,136 @@
+:host { display: block; }
+
+.hero {
+  align-items: center;
+  background: linear-gradient(108deg, #ffe58a 0%, #ffe68c 70%, #ffdf76 100%);
+  border-radius: 1rem;
+  display: flex;
+  justify-content: space-between;
+  min-height: 184px;
+  overflow: hidden;
+  padding: 1.5rem clamp(1.25rem, 3vw, 2.25rem);
+  position: relative;
+}
+
+.hero-copy { position: relative; width: min(70%, 650px); z-index: 1; }
+
+.eyebrow {
+  color: #8c6500;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 0 0 0.45rem;
+}
+
+.hero h1 {
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  margin: 0;
+  max-width: 650px;
+}
+
+.hero-description {
+  color: #655b40;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0.55rem 0 0.9rem;
+}
+
+.search-box {
+  align-items: center;
+  background: var(--cc-white);
+  border: 1px solid rgba(25, 25, 25, 0.08);
+  border-radius: 0.65rem;
+  box-shadow: 0 4px 14px rgba(25, 25, 25, 0.08);
+  display: flex;
+  gap: 0.6rem;
+  max-width: 485px;
+  min-height: 42px;
+  padding: 0.25rem 0.3rem 0.25rem 0.8rem;
+}
+
+.search-box > svg,
+.search-box button svg {
+  fill: none;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  width: 17px;
+}
+
+.search-box > svg { color: #4b5563; flex: 0 0 auto; }
+
+.search-box input {
+  background: transparent;
+  border: 0;
+  color: var(--cc-black);
+  flex: 1;
+  font: inherit;
+  font-size: 0.72rem;
+  min-width: 0;
+  outline: 0;
+}
+
+.search-box input::placeholder { color: #8b9099; }
+
+.search-box button {
+  align-items: center;
+  background: var(--cc-yellow);
+  border: 0;
+  border-radius: 0.45rem;
+  color: var(--cc-black);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 38px;
+}
+
+.hero-art {
+  align-self: stretch;
+  display: grid;
+  flex: 0 0 31%;
+  min-width: 180px;
+  place-items: center;
+  position: relative;
+}
+
+.hero-sun {
+  background: rgba(255, 250, 216, 0.75);
+  border-radius: 50%;
+  height: min(90%, 170px);
+  position: absolute;
+  right: 13%;
+  top: 5%;
+  width: min(90%, 170px);
+}
+
+.hero-art > svg {
+  filter: drop-shadow(0 7px 2px rgba(100, 69, 0, 0.08));
+  height: 100%;
+  max-height: 185px;
+  max-width: 230px;
+  overflow: visible;
+  position: relative;
+  width: 100%;
+}
+
+.student-hair { fill: #263142; }
+.student-neck { fill: #c98a5e; }
+.student-face { fill: #d99a68; }
+.student-body { fill: #1d3155; }
+.student-arm { fill: #d99a68; }
+.laptop-back { fill: #283b54; }
+.laptop-screen { fill: #50677e; }
+.laptop-base { fill: #1b2c43; }
+
+@media (max-width: 650px) {
+  .hero { min-height: 195px; padding: 1.2rem; }
+  .hero-copy { width: 100%; }
+  .hero-art { flex-basis: 28%; min-width: 100px; opacity: 0.62; position: absolute; right: -0.6rem; top: 0.5rem; width: 34%; }
+  .hero h1 { font-size: clamp(1.35rem, 6vw, 1.8rem); max-width: 75%; }
+  .hero-description { font-size: 0.7rem; max-width: 76%; }
+  .desktop-break { display: none; }
+  .search-box { max-width: none; position: relative; z-index: 1; }
+}

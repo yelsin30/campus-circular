@@ -1,0 +1,35 @@
+<main class="exchanges-page">
+  <header class="page-heading">
+    <div><h1>Mis intercambios</h1><p>Gestiona tus solicitudes, confirma entregas y califica a otros estudiantes.</p></div>
+    <a class="explore-button" routerLink="/inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>Explorar materiales</a>
+  </header>
+
+  <div class="exchange-layout">
+    <section class="requests-panel" aria-label="Solicitudes de intercambio">
+      <div class="tabs" role="tablist" aria-label="Solicitudes">
+        @for (tab of tabs; track tab.id) {
+          <button type="button" role="tab" [attr.aria-selected]="activeTab === tab.id" [class.active]="activeTab === tab.id" (click)="selectTab(tab.id)">
+            {{ tab.label }} <span>({{ tab.id === 'received' ? receivedCount : tab.id === 'sent' ? sentCount : completedCount }})</span>
+          </button>
+        }
+      </div>
+
+      @if (actionMessage) { <p class="action-feedback" role="status">{{ actionMessage }}</p> }
+
+      @if (requests.length) {
+        <div class="request-list">
+          @for (request of requests; track request.id) {
+            @if (materialFor(request); as material) {
+              <app-exchange-request-row [request]="request" [material]="material" [currentUser]="currentUser" [activeTab]="activeTab" [selected]="selectedRequestId === request.id" [agreementDetailsVisible]="agreementDetailsId === request.id" [alreadyRated]="alreadyRated(request)" (action)="handleRowAction($event)" />
+            }
+          }
+        </div>
+        <div class="safety-note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg>Por tu seguridad, confirma la entrega únicamente después de reunirte dentro del campus.</div>
+      } @else {
+        <div class="empty-state"><span aria-hidden="true">↔</span><h2>No hay intercambios en esta pestaña</h2><p>Explora el marketplace para encontrar materiales de la comunidad UPN.</p><a routerLink="/inicio">Explorar materiales</a></div>
+      }
+    </section>
+
+    <app-exchange-side-panel [request]="selectedRequest" [material]="selectedMaterial" [currentUser]="currentUser" [counterparty]="selectedCounterparty" (requestSelected)="selectRequest($event)" (deliveryConfirmed)="onDeliveryConfirmed($event)" />
+  </div>
+</main>

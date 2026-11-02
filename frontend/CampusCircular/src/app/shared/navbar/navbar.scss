@@ -1,0 +1,165 @@
+:host {
+  display: block;
+}
+
+.navbar {
+  align-items: center;
+  background: var(--cc-white);
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 0.45rem clamp(1rem, 5vw, 2.75rem);
+}
+
+.brand,
+.nav-links a {
+  color: var(--cc-black);
+  text-decoration: none;
+}
+
+.brand {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 750;
+  gap: 0.45rem;
+}
+
+.brand-mark {
+  align-items: center;
+  background: var(--cc-yellow);
+  border-radius: 0.55rem;
+  display: inline-flex;
+  height: 1.8rem;
+  justify-content: center;
+  width: 1.8rem;
+}
+
+.brand-mark span {
+  align-items: center;
+  background: var(--cc-black);
+  border-radius: 50%;
+  color: var(--cc-yellow);
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 800;
+  height: 1.1rem;
+  justify-content: center;
+  width: 1.1rem;
+}
+
+.nav-links {
+  align-items: center;
+  display: flex;
+  gap: 0.2rem;
+}
+
+.nav-links a {
+  border-radius: 0.4rem;
+  font-size: 0.68rem;
+  padding: 0.55rem 0.7rem;
+  white-space: nowrap;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+  background: #fff1bf;
+}
+
+.account-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.6rem;
+}
+
+.icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #424854;
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.icon-button svg {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  width: 16px;
+}
+
+.profile-link {
+  align-items: center;
+  border: 1px solid #eceef1;
+  border-radius: 2rem;
+  display: inline-flex;
+  font-size: 0.66rem;
+  gap: 0.4rem;
+  padding: 0.2rem 0.4rem 0.2rem 0.25rem;
+  white-space: nowrap;
+}
+
+.profile-avatar {
+  align-items: center;
+  background: #f4d8c4;
+  border: 2px solid #fff2e4;
+  border-radius: 50%;
+  color: #754c31;
+  display: inline-flex;
+  font-size: 0.5rem;
+  font-weight: 750;
+  height: 1.45rem;
+  justify-content: center;
+  width: 1.45rem;
+}
+
+.profile-link > svg {
+  fill: none;
+  height: 12px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  width: 12px;
+}
+
+@media (max-width: 720px) {
+  .navbar {
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .nav-links {
+    flex: 1 0 100%;
+    justify-content: center;
+    order: 3;
+    overflow-x: auto;
+  }
+
+  .nav-links a {
+    padding: 0.45rem 0.6rem;
+  }
+
+  .account-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .profile-link > span:not(.profile-avatar),
+  .profile-link > svg {
+    display: none;
+  }
+}

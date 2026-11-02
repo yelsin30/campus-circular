@@ -1,0 +1,71 @@
+<div class="marketplace">
+  <app-home-hero [searchTerm]="searchTerm" (searchChanged)="searchTerm = $event" />
+  <app-category-nav [categories]="categories" [selectedCategory]="selectedCategory" (categorySelected)="selectCategory($event)" />
+
+  <section class="results-layout" aria-label="Materiales disponibles">
+    <aside class="filters" aria-label="Filtros de búsqueda">
+      <h2 class="filter-title"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10m-7 6h4" /></svg>Filtros</h2>
+
+      <fieldset class="filter-group">
+        <legend>Carrera académica</legend>
+        <select aria-label="Carrera académica" [value]="selectedCareer" (change)="updateCareer($event)">
+          <option>Todas las carreras</option>
+          <option>Ingeniería</option>
+          <option>Administración</option>
+          <option>Comunicaciones</option>
+        </select>
+      </fieldset>
+
+      <fieldset class="filter-group">
+        <legend>Estado de conservación</legend>
+        @for (condition of conditions; track condition) {
+          <label class="check-option">
+            <input type="checkbox" [checked]="selectedConditions.has(condition)" (change)="toggleCondition(condition, $event)" />
+            <span>{{ condition }}</span>
+          </label>
+        }
+      </fieldset>
+
+      <fieldset class="filter-group modality-group">
+        <legend>Modalidad</legend>
+        @for (mode of modes; track mode) {
+          <label class="check-option">
+            <input type="checkbox" [checked]="selectedModes.has(mode)" (change)="toggleMode(mode, $event)" />
+            <span>{{ mode }}</span>
+          </label>
+        }
+      </fieldset>
+
+      <button class="clear-filters" type="button" (click)="clearFilters()">Limpiar filtros</button>
+    </aside>
+
+    <div class="results">
+      <div class="results-heading">
+        <div class="results-title">
+          <h2>Materiales disponibles</h2>
+          <span>{{ filteredMaterials.length }} resultados</span>
+        </div>
+        <label class="sort-control">
+          <select aria-label="Ordenar materiales" [value]="sortOrder" (change)="updateSort($event)">
+            <option value="recent">Más recientes</option>
+            <option value="price">Precio más bajo</option>
+          </select>
+        </label>
+      </div>
+
+      @if (filteredMaterials.length) {
+        <div class="material-grid">
+          @for (material of filteredMaterials; track material.id) {
+            <app-material-card [material]="material" [favorite]="favorites.has(material.id)" (favoriteToggled)="onFavoriteToggled($event)" />
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <h3>No encontramos materiales</h3>
+          <p>Prueba con otros términos o elimina algunos filtros.</p>
+          <button type="button" (click)="clearFilters()">Limpiar búsqueda</button>
+        </div>
+      }
+    </div>
+  </section>
+</div>

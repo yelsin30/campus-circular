@@ -1,0 +1,15 @@
+:host { display: block; min-width: 0; }
+.gallery-panel { background: var(--cc-white); border: 1px solid #e8ebef; border-radius: 1.1rem; box-shadow: 0 9px 28px rgba(30,41,59,.06); min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); }
+.main-image { align-items: center; border-radius: 0.8rem; display: flex; height: clamp(300px, 34vw, 480px); justify-content: center; overflow: hidden; position: relative; }
+.main-image-glow { background: rgba(255,255,255,.38); border-radius: 50%; height: 75%; position: absolute; right: -5%; top: -22%; width: 48%; }
+.main-image app-material-artwork { height: min(74%, 340px); position: relative; width: min(74%, 380px); z-index: 1; }
+.uploaded-image { height: 100%; object-fit: contain; position: relative; width: 100%; z-index: 1; }
+.thumbnail-list { display: flex; gap: 0.6rem; margin-top: 0.7rem; }
+.thumbnail { background: #fff; border: 1px solid #e5e8ed; border-radius: 0.65rem; cursor: pointer; height: 82px; overflow: hidden; padding: 0.3rem; width: 94px; }
+.thumbnail.active { border: 2px solid var(--cc-yellow); padding: calc(0.3rem - 1px); }
+.thumbnail-image { align-items: center; border-radius: 0.4rem; display: flex; height: 100%; justify-content: center; overflow: hidden; width: 100%; }
+.thumbnail-image app-material-artwork { height: 88%; max-width: 80%; }
+.thumbnail-image img { height: 100%; object-fit: cover; width: 100%; }
+.gallery-caption { color: #8b929e; font-size: 0.75rem; margin: 0.7rem 0 0; }
+@media (max-width: 760px) { .main-image { height: clamp(280px, 72vw, 440px); } .main-image app-material-artwork { height: 76%; width: 76%; } }
+@media (max-width: 460px) { .gallery-panel { padding: 0.7rem; } .main-image { height: 270px; } .thumbnail { height: 70px; width: 80px; } }

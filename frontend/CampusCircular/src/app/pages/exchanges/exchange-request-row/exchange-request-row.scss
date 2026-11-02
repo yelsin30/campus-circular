@@ -1,0 +1,34 @@
+:host { display:block; }
+.request-row { align-items:flex-start; border-bottom:1px solid #eaedf1; cursor:pointer; display:flex; gap:.8rem; padding:.85rem .35rem; transition:background-color 120ms; }
+.request-row:hover,.request-row.row-selected { background:#fffdf5; }
+:host:last-child .request-row { border-bottom:0; }
+.request-art { align-items:center; border-radius:.65rem; display:flex; flex:0 0 96px; height:96px; justify-content:center; overflow:hidden; }
+.request-art app-material-artwork { height:80%; max-width:80%; }
+.request-art img { height:100%; object-fit:cover; width:100%; }
+.request-content { flex:1; min-width:0; }
+.request-title-line { align-items:flex-start; display:flex; gap:.6rem; justify-content:space-between; }
+.request-title-line h2 { color:#252a32; font-size:.82rem; line-height:1.35; margin:.15rem 0 .4rem; }
+.status-badge { border-radius:.4rem; flex:0 0 auto; font-size:.62rem; font-weight:800; padding:.32rem .48rem; }
+.status-pendiente { background:#fff1cf; color:#a45c00; }
+.status-en-negociación { background:#e9efff; color:#315ab0; }
+.status-aceptado { background:#e2f6e8; color:#237745; }
+.status-rechazado,.status-cancelado { background:#fde9e9; color:#b13f43; }
+.status-completado { background:#e5f5ed; color:#267454; }
+.request-meta,.request-date { color:#727c8b; font-size:.68rem; line-height:1.4; margin:.1rem 0; }
+.person-icon { color:#4383cb; font-size:.7rem; }
+.separator { color:#aab0b9; margin-inline:.2rem; }
+.request-date span { color:#939aa5; }
+.row-actions { align-items:center; display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.45rem; }
+.small-primary,.small-secondary,.text-action { border-radius:.48rem; cursor:pointer; font:inherit; font-size:.68rem; font-weight:750; min-height:31px; padding:.38rem .65rem; }
+.small-primary { background:#ffd100; border:1px solid #ffd100; color:#22272f; }
+.small-primary:hover { background:#f3c500; }
+.small-secondary { background:#fff; border:1px solid #dfe4eb; color:#323a46; }
+.small-secondary:hover { background:#f7f8fa; }
+.danger { color:#a83e43; }
+.text-action { background:none; border:0; color:#657080; padding-inline:.35rem; }
+.danger-text { color:#b53e43; }
+.completed-note,.rated-note { color:#5c7787; font-size:.67rem; font-weight:700; }
+.rated-note { color:#368052; }
+.agreement-note { background:#f5f7fa; border-radius:.4rem; color:#697382; font-size:.68rem; line-height:1.45; margin:.4rem 0; padding:.5rem; }
+.agreement-note strong { color:#3f4753; }
+@media (max-width:600px) { .request-row { gap:.55rem; padding:.7rem .15rem; } .request-art { flex-basis:68px; height:76px; } .request-title-line h2 { font-size:.72rem; } .status-badge { font-size:.56rem; padding:.27rem .35rem; } .request-meta,.request-date { font-size:.61rem; } .row-actions { gap:.3rem; } .small-primary,.small-secondary,.text-action { font-size:.61rem; min-height:29px; padding:.32rem .48rem; } }
