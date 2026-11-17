@@ -18,6 +18,7 @@ export const routes: Routes = [
 			{ path: 'material/:id', component: MaterialDetailPage },
 			{ path: 'publicar', component: PublishPage },
 			{ path: 'intercambios', component: ExchangesPage },
+			{ path: 'mis-intercambios', component: ExchangesPage },
 			{ path: 'impacto', component: ImpactPage },
 		],
 	},

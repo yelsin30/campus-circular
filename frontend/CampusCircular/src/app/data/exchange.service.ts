@@ -1,15 +1,27 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { catchError, map, Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ExchangeMode } from './material-catalog';
-import { MaterialCatalogService } from './material-catalog.service';
-import { ModerationService } from './moderation.service';
+import { AuthService } from './auth.service';
+import { ExchangeMode, MaterialCategory, MaterialCondition } from './material-catalog';
 
-export type ExchangeStatus = 'Pendiente' | 'En negociación' | 'Aceptado' | 'Rechazado' | 'Cancelado' | 'Completado';
+export type ExchangeStatus =
+  | 'Pendiente'
+  | 'En negociación'
+  | 'Aceptado'
+  | 'Rechazado'
+  | 'Cancelado'
+  | 'Completado';
 export type ExchangeTab = 'received' | 'sent' | 'completed';
 export type ExchangeRole = 'requester' | 'owner';
 export type BackendTransactionType = 'TRUEQUE' | 'DONACION' | 'VENTA_SOLIDARIA';
+export type BackendTransactionStatus =
+  | 'PENDIENTE'
+  | 'EN_NEGOCIACION'
+  | 'ACEPTADA'
+  | 'RECHAZADA'
+  | 'CANCELADA'
+  | 'COMPLETADA';
 
 export interface CreateTransactionRequestDto {
   publicationId: number;
@@ -25,12 +37,38 @@ export interface TransactionResponseDto {
   ownerNotified?: boolean;
   idTransaccion?: number;
   idPublicacion?: number;
-  idPublicacionOfrecida?: number;
+  idPublicacionOfrecida?: number | null;
   idSolicitante?: number;
   idPropietario?: number;
   tipo?: BackendTransactionType;
-  estado?: string;
+  estado?: BackendTransactionStatus | string;
   fechaCreacion?: string;
+  tituloPublicacion?: string | null;
+  categoriaPublicacion?: string | null;
+  condicionPublicacion?: string | null;
+  precioSolidario?: number | null;
+  tituloPublicacionOfrecida?: string | null;
+  correoSolicitante?: string | null;
+  correoPropietario?: string | null;
+  otpExpiraEn?: string | null;
+  fechaCierre?: string | null;
+  yaCalificada?: boolean;
+}
+
+export interface DeliveryCodeResponseDto {
+  code: string;
+  expiresAt: string;
+}
+
+export interface RatingResponseDto {
+  idCalificacion: number;
+  idTransaccion: number;
+  idEmisor: number;
+  idReceptor: number;
+  score: number;
+  comment: string | null;
+  receptorReputacionPromedio: number;
+  fechaCreacion: string;
 }
 
 export interface ExchangeRating {
@@ -43,7 +81,13 @@ export interface ExchangeRating {
 
 export interface ExchangeRequest {
   id: string;
+  transactionId?: number;
   materialId: string;
+  materialTitle?: string;
+  materialCategory?: MaterialCategory;
+  materialCondition?: MaterialCondition;
+  requesterId?: number;
+  ownerId?: number;
   requester: string;
   owner: string;
   mode: ExchangeMode;
@@ -56,31 +100,45 @@ export interface ExchangeRequest {
   exchangedMaterialIds?: string[];
   paidAmount?: number;
   referenceValueSoles?: number;
+  otpExpiresAt?: string | null;
+  alreadyRated?: boolean;
   requesterConfirmed: boolean;
   ownerConfirmed: boolean;
   ratings: ExchangeRating[];
   demo?: boolean;
 }
 
-export type CreateExchangeResult =
-  | { success: true; request: ExchangeRequest }
-  | { success: false; reason: 'own-material' | 'duplicate' | 'not-found' | 'suspended' };
-
-const CURRENT_USER = 'María Pérez';
-const ACTIVE_STATUSES: ExchangeStatus[] = ['Pendiente', 'En negociación', 'Aceptado'];
-
 @Injectable({ providedIn: 'root' })
 export class ExchangeService {
   private readonly http = inject(HttpClient);
-  private readonly catalog = inject(MaterialCatalogService);
-  private readonly moderation = inject(ModerationService);
+  private readonly auth = inject(AuthService);
   private readonly baseUrl = `${environment.apiUrl}/transactions`;
 
-  private readonly requestsSignal = signal<ExchangeRequest[]>(this.createDemoRequests());
+  private readonly requestsSignal = signal<ExchangeRequest[]>([]);
   readonly requests = this.requestsSignal.asReadonly();
-  readonly currentUser = CURRENT_USER;
-  readonly demoOtp = '482931';
-  private sequence = 0;
+
+  get currentUser(): string {
+    const user = this.auth.currentUser();
+    if (user?.email) {
+      return user.email;
+    }
+    if (user?.id !== undefined) {
+      return `Usuario #${user.id}`;
+    }
+    return '';
+  }
+
+  get currentUserId(): number | undefined {
+    return this.auth.currentUser()?.id;
+  }
+
+  loadMyTransactions(): Observable<ExchangeRequest[]> {
+    return this.http.get<TransactionResponseDto[]>(this.baseUrl).pipe(
+      map((list) => (list ?? []).map((dto) => this.mapDtoToExchangeRequest(dto))),
+      tap((items) => this.requestsSignal.set(items)),
+      catchError(() => of(this.requestsSignal())),
+    );
+  }
 
   createTransaction(
     payload: CreateTransactionRequestDto,
@@ -88,202 +146,298 @@ export class ExchangeService {
   ): Observable<TransactionResponseDto> {
     return this.http.post<TransactionResponseDto>(this.baseUrl, payload).pipe(
       tap((response) => {
-        const txId = response.transactionId ?? response.idTransaccion ?? Date.now();
-        const request: ExchangeRequest = {
-          id: `tx-${txId}`,
-          materialId: meta?.materialId ?? String(payload.publicationId),
-          requester: CURRENT_USER,
-          owner: meta?.owner ?? `Usuario #${response.idPropietario ?? ''}`,
-          mode: meta?.mode ?? 'Trueque',
-          status: 'Pendiente',
-          requestedAt: Date.now(),
-          dateLabel: this.formatDate(Date.now()),
-          ...(meta?.message?.trim() ? { message: meta.message.trim() } : {}),
-          ...(meta?.offeredMaterial?.trim() ? { offeredMaterial: meta.offeredMaterial.trim() } : {}),
-          requesterConfirmed: false,
-          ownerConfirmed: false,
-          ratings: [],
-        };
-        this.requestsSignal.update((requests) => [request, ...requests]);
+        const mapped = this.mapDtoToExchangeRequest(response, meta);
+        this.requestsSignal.update((requests) => [
+          mapped,
+          ...requests.filter((r) => r.id !== mapped.id),
+        ]);
       }),
     );
   }
 
+  acceptTransaction(id: number | string): Observable<TransactionResponseDto> {
+    const numericId = this.toNumericId(id);
+    return this.http.post<TransactionResponseDto>(`${this.baseUrl}/${numericId}/accept`, {}).pipe(
+      tap((response) => this.upsertFromDto(response)),
+    );
+  }
+
+  rejectTransaction(id: number | string): Observable<TransactionResponseDto> {
+    const numericId = this.toNumericId(id);
+    return this.http.post<TransactionResponseDto>(`${this.baseUrl}/${numericId}/reject`, {}).pipe(
+      tap((response) => this.upsertFromDto(response)),
+    );
+  }
+
+  generateDeliveryCode(id: number | string): Observable<DeliveryCodeResponseDto> {
+    const numericId = this.toNumericId(id);
+    return this.http.post<DeliveryCodeResponseDto>(`${this.baseUrl}/${numericId}/delivery-code`, {}).pipe(
+      tap((res) => {
+        const targetId = String(numericId);
+        this.requestsSignal.update((requests) =>
+          requests.map((req) =>
+            req.id === targetId || req.transactionId === numericId
+              ? { ...req, otpExpiresAt: res.expiresAt }
+              : req,
+          ),
+        );
+      }),
+    );
+  }
+
+  confirmDeliveryWithOtp(id: number | string, code: string): Observable<TransactionResponseDto> {
+    const numericId = this.toNumericId(id);
+    return this.http
+      .post<TransactionResponseDto>(`${this.baseUrl}/${numericId}/confirm-delivery`, {
+        code: code.trim().toUpperCase(),
+      })
+      .pipe(tap((response) => this.upsertFromDto(response)));
+  }
+
+  rateTransaction(id: number | string, score: number, comment: string): Observable<RatingResponseDto> {
+    const numericId = this.toNumericId(id);
+    return this.http
+      .post<RatingResponseDto>(`${this.baseUrl}/${numericId}/ratings`, {
+        score,
+        comment: comment.trim(),
+      })
+      .pipe(
+        tap((res) => {
+          const targetId = String(numericId);
+          this.requestsSignal.update((requests) =>
+            requests.map((req) => {
+              if (req.id !== targetId && req.transactionId !== numericId) {
+                return req;
+              }
+              const reviewer = this.currentUser || `Usuario #${res.idEmisor}`;
+              const reviewee =
+                req.ownerId === res.idEmisor ? req.requester : req.owner;
+              return {
+                ...req,
+                alreadyRated: true,
+                ratings: [
+                  ...req.ratings,
+                  {
+                    reviewer,
+                    reviewee,
+                    stars: res.score,
+                    comment: res.comment ?? '',
+                    submittedAt: Date.now(),
+                  },
+                ],
+              };
+            }),
+          );
+        }),
+      );
+  }
+
   getRequests(tab: ExchangeTab): ExchangeRequest[] {
     const requests = this.requestsSignal();
+    const userId = this.currentUserId;
+    const userEmail = this.auth.currentUser()?.email?.toLowerCase();
+
+    const isOwner = (req: ExchangeRequest): boolean => {
+      if (userId !== undefined && req.ownerId !== undefined) {
+        return req.ownerId === userId;
+      }
+      if (userEmail) {
+        return req.owner.toLowerCase() === userEmail;
+      }
+      return req.owner === this.currentUser;
+    };
+
+    const isRequester = (req: ExchangeRequest): boolean => {
+      if (userId !== undefined && req.requesterId !== undefined) {
+        return req.requesterId === userId;
+      }
+      if (userEmail) {
+        return req.requester.toLowerCase() === userEmail;
+      }
+      return req.requester === this.currentUser;
+    };
+
     if (tab === 'received') {
-      return requests.filter((request) => request.owner === CURRENT_USER && request.status !== 'Completado');
+      return requests.filter((request) => isOwner(request) && request.status !== 'Completado');
     }
     if (tab === 'sent') {
-      return requests.filter((request) => request.requester === CURRENT_USER && request.status !== 'Completado');
+      return requests.filter((request) => isRequester(request) && request.status !== 'Completado');
     }
     return requests.filter((request) => request.status === 'Completado');
   }
 
-  createRequest(materialId: string, message = '', offeredMaterial = ''): CreateExchangeResult {
-    const material = this.catalog.findPublicById(materialId);
-    if (!material) return { success: false, reason: 'not-found' };
-    if (material.owner === CURRENT_USER) return { success: false, reason: 'own-material' };
-    if (this.moderation.isUserSuspended(CURRENT_USER)) return { success: false, reason: 'suspended' };
-
-    const duplicate = this.requestsSignal().some(
-      (request) =>
-        request.materialId === materialId &&
-        request.requester === CURRENT_USER &&
-        ACTIVE_STATUSES.includes(request.status),
+  findRequest(requestId: string): ExchangeRequest | undefined {
+    return this.requestsSignal().find(
+      (request) => request.id === requestId || String(request.transactionId) === requestId,
     );
-    if (duplicate) return { success: false, reason: 'duplicate' };
+  }
 
-    const request: ExchangeRequest = {
-      id: this.createId(),
-      materialId,
-      requester: CURRENT_USER,
-      owner: material.owner,
-      mode: material.mode,
-      status: 'Pendiente',
-      requestedAt: Date.now(),
-      dateLabel: this.formatDate(Date.now()),
-      ...(message.trim() ? { message: message.trim() } : {}),
-      ...(offeredMaterial.trim() ? { offeredMaterial: offeredMaterial.trim() } : {}),
-      requesterConfirmed: false,
-      ownerConfirmed: false,
+  isUserOwner(request: ExchangeRequest | undefined): boolean {
+    if (!request) return false;
+    const userId = this.currentUserId;
+    if (userId !== undefined && request.ownerId !== undefined) {
+      return request.ownerId === userId;
+    }
+    const userEmail = this.auth.currentUser()?.email?.toLowerCase();
+    if (userEmail) {
+      return request.owner.toLowerCase() === userEmail;
+    }
+    return request.owner === this.currentUser;
+  }
+
+  toNumericId(id: number | string): number {
+    if (typeof id === 'number') return id;
+    const cleaned = id.replace(/^tx-/, '');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private upsertFromDto(dto: TransactionResponseDto): void {
+    const mapped = this.mapDtoToExchangeRequest(dto);
+    this.requestsSignal.update((requests) => {
+      const exists = requests.some(
+        (req) => req.id === mapped.id || req.transactionId === mapped.transactionId,
+      );
+      if (!exists) {
+        return [mapped, ...requests];
+      }
+      return requests.map((req) =>
+        req.id === mapped.id || req.transactionId === mapped.transactionId
+          ? {
+              ...req,
+              ...mapped,
+              message: mapped.message ?? req.message,
+              offeredMaterial: mapped.offeredMaterial ?? req.offeredMaterial,
+            }
+          : req,
+      );
+    });
+  }
+
+  private mapDtoToExchangeRequest(
+    dto: TransactionResponseDto,
+    meta?: { materialId: string; owner: string; mode: ExchangeMode; message?: string; offeredMaterial?: string },
+  ): ExchangeRequest {
+    const txId = dto.idTransaccion ?? dto.transactionId ?? Date.now();
+    const createdTimestamp = dto.fechaCreacion ? Date.parse(dto.fechaCreacion) : Date.now();
+    const closedTimestamp = dto.fechaCierre ? Date.parse(dto.fechaCierre) : undefined;
+    const requestedAt = Number.isNaN(createdTimestamp) ? Date.now() : createdTimestamp;
+    const status = this.fromBackendStatus(dto.estado ?? dto.state);
+    const mode = meta?.mode ?? this.fromBackendType(dto.tipo);
+    const requesterLabel =
+      dto.correoSolicitante ??
+      (dto.idSolicitante !== undefined ? `Usuario #${dto.idSolicitante}` : this.currentUser);
+    const ownerLabel =
+      dto.correoPropietario ??
+      meta?.owner ??
+      (dto.idPropietario !== undefined ? `Usuario #${dto.idPropietario}` : '');
+    const offeredLabel =
+      dto.tituloPublicacionOfrecida ??
+      meta?.offeredMaterial ??
+      (dto.idPublicacionOfrecida ? `Publicación #${dto.idPublicacionOfrecida}` : undefined);
+
+    return {
+      id: String(txId),
+      transactionId: txId,
+      materialId: meta?.materialId ?? String(dto.idPublicacion ?? ''),
+      ...(dto.tituloPublicacion ? { materialTitle: dto.tituloPublicacion } : {}),
+      ...(dto.categoriaPublicacion
+        ? { materialCategory: this.fromBackendCategory(dto.categoriaPublicacion) }
+        : {}),
+      ...(dto.condicionPublicacion
+        ? { materialCondition: this.fromBackendCondition(dto.condicionPublicacion) }
+        : {}),
+      requesterId: dto.idSolicitante,
+      ownerId: dto.idPropietario,
+      requester: requesterLabel,
+      owner: ownerLabel,
+      mode,
+      status,
+      requestedAt,
+      ...(closedTimestamp && !Number.isNaN(closedTimestamp)
+        ? { completedAt: closedTimestamp }
+        : status === 'Completado'
+          ? { completedAt: Date.now() }
+          : {}),
+      dateLabel: this.formatDate(requestedAt),
+      ...(meta?.message?.trim() ? { message: meta.message.trim() } : {}),
+      ...(offeredLabel ? { offeredMaterial: offeredLabel } : {}),
+      ...(dto.idPublicacionOfrecida
+        ? { exchangedMaterialIds: [String(dto.idPublicacionOfrecida)] }
+        : {}),
+      ...(dto.precioSolidario !== null && dto.precioSolidario !== undefined
+        ? { paidAmount: Number(dto.precioSolidario) }
+        : {}),
+      otpExpiresAt: dto.otpExpiraEn ?? null,
+      alreadyRated: Boolean(dto.yaCalificada),
+      requesterConfirmed: status === 'Completado',
+      ownerConfirmed: status === 'Completado',
       ratings: [],
     };
-    this.requestsSignal.update((requests) => [request, ...requests]);
-    return { success: true, request };
   }
 
-  accept(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.owner !== actor || request.status !== 'Pendiente') return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'Aceptado' }));
-  }
-
-  reject(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.owner !== actor || request.status !== 'Pendiente') return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'Rechazado' }));
-  }
-
-  setNegotiating(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.owner !== actor || request.status !== 'Pendiente') return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'En negociación' }));
-  }
-
-  acceptNegotiation(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.owner !== actor || request.status !== 'En negociación') return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'Aceptado' }));
-  }
-
-  rejectNegotiation(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.owner !== actor || request.status !== 'En negociación') return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'Rechazado' }));
-  }
-
-  cancel(requestId: string, actor: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.requester !== actor || !['Pendiente', 'En negociación', 'Aceptado'].includes(request.status)) return false;
-    return this.update(requestId, (item) => ({ ...item, status: 'Cancelado' }));
-  }
-
-  confirmDelivery(requestId: string, actor: string, role: ExchangeRole, code: string): { success: boolean; message: string } {
-    const request = this.findRequest(requestId);
-    if (!request || request.status !== 'Aceptado') return { success: false, message: 'Solo se pueden confirmar entregas aceptadas.' };
-    if (code !== this.demoOtp) return { success: false, message: 'El código de prueba no coincide.' };
-    if ((role === 'owner' && request.owner !== actor) || (role === 'requester' && request.requester !== actor)) {
-      return { success: false, message: 'Este participante no corresponde a la solicitud.' };
+  private fromBackendStatus(raw: string | undefined): ExchangeStatus {
+    switch ((raw ?? '').trim().toUpperCase()) {
+      case 'PENDIENTE':
+        return 'Pendiente';
+      case 'EN_NEGOCIACION':
+        return 'En negociación';
+      case 'ACEPTADA':
+        return 'Aceptado';
+      case 'RECHAZADA':
+        return 'Rechazado';
+      case 'CANCELADA':
+        return 'Cancelado';
+      case 'COMPLETADA':
+        return 'Completado';
+      default:
+        return 'Pendiente';
     }
-    if ((role === 'owner' && request.ownerConfirmed) || (role === 'requester' && request.requesterConfirmed)) {
-      return { success: false, message: 'Este participante ya confirmó la entrega.' };
+  }
+
+  private fromBackendType(type: BackendTransactionType | string | undefined): ExchangeMode {
+    switch ((type ?? '').trim().toUpperCase()) {
+      case 'DONACION':
+        return 'Donación';
+      case 'VENTA_SOLIDARIA':
+        return 'Precio solidario';
+      case 'TRUEQUE':
+      default:
+        return 'Trueque';
     }
-
-    const updated = this.update(requestId, (item) => ({
-      ...item,
-      ownerConfirmed: role === 'owner' ? true : item.ownerConfirmed,
-      requesterConfirmed: role === 'requester' ? true : item.requesterConfirmed,
-    }));
-    if (!updated) return { success: false, message: 'No se pudo actualizar la confirmación.' };
-
-    const latest = this.findRequest(requestId);
-    return {
-      success: true,
-      message: latest?.ownerConfirmed && latest.requesterConfirmed
-        ? 'Ambas partes confirmaron. El intercambio se completó.'
-        : 'Confirmación registrada para esta parte. Falta la otra persona.',
-    };
   }
 
-  rate(requestId: string, reviewer: string, stars: number, comment: string): boolean {
-    const request = this.findRequest(requestId);
-    if (!request || request.status !== 'Completado' || !Number.isInteger(stars) || stars < 1 || stars > 5) return false;
-    if (reviewer !== request.owner && reviewer !== request.requester) return false;
-    if (request.ratings.some((rating) => rating.reviewer === reviewer)) return false;
-
-    const reviewee = reviewer === request.owner ? request.requester : request.owner;
-    return this.update(requestId, (item) => ({
-      ...item,
-      ratings: [...item.ratings, { reviewer, reviewee, stars, comment: comment.trim(), submittedAt: Date.now() }],
-    }));
+  private fromBackendCategory(raw: string): MaterialCategory {
+    const normalized = raw.toLowerCase();
+    if (normalized.includes('libro')) return 'Libros';
+    if (normalized.includes('apunte')) return 'Apuntes';
+    if (normalized.includes('equipo')) return 'Equipos';
+    if (normalized.includes('material')) return 'Materiales';
+    return 'Otros';
   }
 
-  findRequest(requestId: string): ExchangeRequest | undefined {
-    return this.requestsSignal().find((request) => request.id === requestId);
-  }
-
-  private update(requestId: string, updater: (request: ExchangeRequest) => ExchangeRequest): boolean {
-    let found = false;
-    this.requestsSignal.update((requests) => requests.map((request) => {
-      if (request.id !== requestId) return request;
-      found = true;
-      const updated = updater(request);
-      if (updated.status === 'Aceptado' && request.status !== 'Aceptado') {
-        updated.requesterConfirmed = false;
-        updated.ownerConfirmed = false;
-      }
-      if (updated.ownerConfirmed && updated.requesterConfirmed && updated.status !== 'Completado') {
-        updated.status = 'Completado';
-        updated.completedAt = Date.now();
-      }
-      return updated;
-    }));
-    return found;
-  }
-
-  private createId(): string {
-    this.sequence += 1;
-    return `exchange-${Date.now().toString(36)}-${this.sequence.toString(36)}`;
+  private fromBackendCondition(raw: string): MaterialCondition {
+    switch (raw.trim().toUpperCase()) {
+      case 'NUEVO':
+        return 'Nuevo';
+      case 'SEMINUEVO':
+        return 'Seminuevo';
+      case 'BUENO':
+        return 'En buen estado';
+      case 'ACEPTABLE':
+        return 'Aceptable';
+      case 'SCRAP':
+        return 'Repuestos / Scrap';
+      default:
+        return 'En buen estado';
+    }
   }
 
   private formatDate(timestamp: number): string {
-    return new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'short', year: 'numeric' }).format(timestamp);
-  }
-
-  private createDemoRequests(): ExchangeRequest[] {
-    const daysAgo = (days: number) => Date.now() - days * 24 * 60 * 60 * 1000;
-    const create = (id: string, materialId: string, requester: string, owner: string, mode: ExchangeMode, status: ExchangeStatus, days: number, impact?: { paidAmount?: number; referenceValueSoles?: number }): ExchangeRequest => ({
-      id, materialId, requester, owner, mode, status, requestedAt: daysAgo(days), dateLabel: this.formatDate(daysAgo(days)),
-      requesterConfirmed: status === 'Completado', ownerConfirmed: status === 'Completado', ratings: [], demo: true,
-      ...(status === 'Completado' ? { completedAt: daysAgo(days) } : {}),
-      ...impact,
-      ...(status === 'En negociación' ? { message: '¿Podemos coordinar el intercambio en el campus?' } : {}),
-    });
-
-    return [
-      create('demo-received-calculator', 'calculadora-cientifica', 'Luis García', CURRENT_USER, 'Precio solidario', 'Pendiente', 11),
-      create('demo-received-notes', 'apuntes-java', 'Valeria Montalvo', CURRENT_USER, 'Trueque', 'En negociación', 13),
-      create('demo-received-algorithms', 'libro-algoritmos', 'Diego Ramos', CURRENT_USER, 'Trueque', 'Aceptado', 15),
-      create('demo-sent-backpack', 'mochila-azul', CURRENT_USER, 'Diana Castro', 'Donación', 'Pendiente', 8),
-      create('demo-sent-tablet', 'tablet-apuntes', CURRENT_USER, 'Luis García', 'Precio solidario', 'Aceptado', 9),
-      ...[
-        create('demo-completed-1', 'calculo-diferencial', 'Ana Torres', CURRENT_USER, 'Donación', 'Completado', 18, { referenceValueSoles: 80 }),
-        create('demo-completed-2', 'kit-arduino', CURRENT_USER, 'Daniel Peña', 'Trueque', 'Completado', 20),
-        create('demo-completed-3', 'apuntes-java', 'Camila Rojas', CURRENT_USER, 'Trueque', 'Completado', 22),
-        create('demo-completed-4', 'mochila-azul', CURRENT_USER, 'Diana Castro', 'Donación', 'Completado', 25, { referenceValueSoles: 65 }),
-        create('demo-completed-5', 'tablet-apuntes', 'Luis García', CURRENT_USER, 'Precio solidario', 'Completado', 27, { paidAmount: 280, referenceValueSoles: 420 }),
-      ],
-    ];
+    return new Intl.DateTimeFormat('es-PE', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(timestamp);
   }
 }

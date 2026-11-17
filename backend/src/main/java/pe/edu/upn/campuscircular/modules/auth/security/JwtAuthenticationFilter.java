@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,6 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtService jwtService;
 
@@ -30,18 +34,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain) throws ServletException, IOException {
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            var identity = jwtService.validateToken(authorization.substring(7));
-            if (identity.isEmpty()) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token JWT inválido");
-                return;
+            try {
+                String rawToken = authorization.substring(7).trim();
+                var identity = jwtService.validateToken(rawToken);
+                if (identity.isPresent()) {
+                    var user = identity.get();
+                    var authentication = new UsernamePasswordAuthenticationToken(
+                        user.email(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    log.debug(
+                        "Token JWT expirado o inválido en {}: continuando como petición anónima",
+                        request.getRequestURI());
+                    SecurityContextHolder.clearContext();
+                }
+            } catch (IllegalArgumentException ex) {
+                log.debug(
+                    "Token JWT malformado en {}: {}",
+                    request.getRequestURI(),
+                    ex.getMessage());
+                SecurityContextHolder.clearContext();
+            } catch (Exception ex) {
+                log.debug(
+                    "No se pudo procesar el token JWT en {}: {}",
+                    request.getRequestURI(),
+                    ex.getMessage());
+                SecurityContextHolder.clearContext();
             }
-
-            var user = identity.get();
-            var authentication = new UsernamePasswordAuthenticationToken(
-                user.email(),
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
         filterChain.doFilter(request, response);
     }

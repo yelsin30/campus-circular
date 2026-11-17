@@ -9,12 +9,14 @@
 .selected-exchange span { color:#7a8390; font-size:.63rem; }
 .selected-exchange b { color:#4a5360; }
 .otp-label { color:#404854; display:block; font-size:.68rem; font-weight:750; margin-bottom:.35rem; }
-.otp-input { background:#f6f7f9; border:1px dashed #d5dbe4; border-radius:.55rem; color:#303944; font:inherit; font-size:1.35rem; font-weight:850; height:50px; letter-spacing:.35em; outline-color:#d4a900; text-align:center; width:100%; }
-.demo-code-note { color:#848d99; font-size:.62rem; margin:.35rem 0 .55rem; text-align:center; }
-.confirmers { display:grid; gap:.4rem; grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:.5rem; }
-.confirmers button { background:#fff; border:1px solid #dfe4eb; border-radius:.45rem; color:#515b68; cursor:pointer; font:inherit; font-size:.61rem; font-weight:700; min-height:31px; padding:.3rem; }
-.confirmers button.confirmed { background:#e5f5eb; border-color:#bfe3ca; color:#287548; }
-.confirmers button:disabled { cursor:default; }
+.otp-input { background:#f6f7f9; border:1px dashed #d5dbe4; border-radius:.55rem; color:#303944; font:inherit; font-size:1.35rem; font-weight:850; height:50px; letter-spacing:.35em; margin-bottom:.55rem; outline-color:#d4a900; text-align:center; text-transform:uppercase; width:100%; }
+.generate-otp-button { background:#fff; border:1px solid #d5dbe4; border-radius:.55rem; color:#252a32; cursor:pointer; font:inherit; font-size:.72rem; font-weight:750; margin-bottom:.65rem; min-height:38px; padding:.5rem .7rem; width:100%; }
+.generate-otp-button:hover { background:#f7f8fa; }
+.generate-otp-button:disabled { cursor:not-allowed; opacity:.7; }
+.generated-code-box { align-items:center; background:#fffdf0; border:1px solid #f0d766; border-radius:.6rem; display:flex; flex-direction:column; gap:.2rem; margin-bottom:.75rem; padding:.6rem .75rem; text-align:center; }
+.generated-label { color:#6c5800; font-size:.62rem; font-weight:700; }
+.generated-value { color:#20252c; font-size:1.35rem; font-weight:850; letter-spacing:.28em; }
+.generated-expiry { color:#7a8390; font-size:.6rem; }
 .confirm-button { align-items:center; background:#ffd100; border:0; border-radius:.55rem; color:#20252c; cursor:pointer; display:flex; font:inherit; font-size:.72rem; font-weight:800; gap:.4rem; justify-content:center; min-height:39px; padding:.55rem .7rem; width:100%; }
 .confirm-button:hover { background:#f2c500; }
 .confirm-button:disabled { cursor:not-allowed; opacity:.7; }

@@ -3,7 +3,7 @@ import { ExchangeRequest, ExchangeTab } from '../../../data/exchange.service';
 import { MarketplaceMaterial } from '../../../data/material-catalog';
 import { MaterialArtwork } from '../../../shared/material-artwork/material-artwork';
 
-export type ExchangeRowAction = 'select' | 'accept' | 'reject' | 'negotiate' | 'accept-negotiation' | 'reject-negotiation' | 'cancel' | 'agreement';
+export type ExchangeRowAction = 'select' | 'accept' | 'reject' | 'agreement';
 
 @Component({
   selector: 'app-exchange-request-row',
@@ -23,6 +23,12 @@ export class ExchangeRequestRow {
   @Output() action = new EventEmitter<{ type: ExchangeRowAction; request: ExchangeRequest }>();
 
   get counterparty(): string {
+    if (this.activeTab === 'received') {
+      return this.request.requester;
+    }
+    if (this.activeTab === 'sent') {
+      return this.request.owner;
+    }
     return this.request.owner === this.currentUser ? this.request.requester : this.request.owner;
   }
 

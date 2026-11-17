@@ -1,40 +1,96 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { environment } from '../../environments/environment';
 import { ExchangeService } from './exchange.service';
-import { MaterialCatalogService } from './material-catalog.service';
 
 describe('ExchangeService', () => {
   let service: ExchangeService;
+  let httpMock: HttpTestingController;
+  const baseUrl = `${environment.apiUrl}/transactions`;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [MaterialCatalogService, ExchangeService] });
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), ExchangeService],
+    });
     service = TestBed.inject(ExchangeService);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  it('creates a sent request and prevents an active duplicate', () => {
-    const first = service.createRequest('calculadora-cientifica', 'Hola');
-    expect(first.success).toBe(true);
-    expect(service.getRequests('sent').some((request) => request.id === (first.success ? first.request.id : ''))).toBe(true);
-    expect(service.createRequest('calculadora-cientifica').success).toBe(false);
+  afterEach(() => {
+    httpMock.verify();
   });
 
-  it('requires valid OTP confirmation from both participants to complete', () => {
-    const request = service.getRequests('received').find((item) => item.id === 'demo-received-algorithms');
-    expect(request).toBeDefined();
-    if (!request) return;
+  it('loads user transactions and transitions through accept, delivery-code, confirm-delivery and rating', () => {
+    service.loadMyTransactions().subscribe();
+    const listReq = httpMock.expectOne(baseUrl);
+    expect(listReq.request.method).toBe('GET');
+    listReq.flush([
+      {
+        idTransaccion: 10,
+        idPublicacion: 1,
+        idPublicacionOfrecida: 2,
+        idSolicitante: 2,
+        idPropietario: 1,
+        tipo: 'TRUEQUE',
+        estado: 'PENDIENTE',
+        tituloPublicacion: 'Diagrama de conexiones',
+      },
+    ]);
 
-    expect(service.confirmDelivery(request.id, request.owner, 'owner', '000000').success).toBe(false);
-    expect(service.confirmDelivery(request.id, request.owner, 'owner', service.demoOtp).success).toBe(true);
-    expect(service.findRequest(request.id)?.status).toBe('Aceptado');
-    expect(service.confirmDelivery(request.id, request.requester, 'requester', service.demoOtp).success).toBe(true);
-    expect(service.findRequest(request.id)?.status).toBe('Completado');
-    expect(service.confirmDelivery(request.id, request.requester, 'requester', service.demoOtp).success).toBe(false);
-  });
+    expect(service.findRequest('10')?.status).toBe('Pendiente');
 
-  it('only permits one rating per user for a completed transaction', () => {
-    const request = service.getRequests('completed')[0];
-    expect(request).toBeDefined();
-    if (!request) return;
-    expect(service.rate(request.id, request.owner, 5, 'Excelente')).toBe(true);
-    expect(service.rate(request.id, request.owner, 4, 'Duplicada')).toBe(false);
+    service.acceptTransaction(10).subscribe();
+    const acceptReq = httpMock.expectOne(`${baseUrl}/10/accept`);
+    expect(acceptReq.request.method).toBe('POST');
+    acceptReq.flush({
+      idTransaccion: 10,
+      idPublicacion: 1,
+      idPublicacionOfrecida: 2,
+      idSolicitante: 2,
+      idPropietario: 1,
+      tipo: 'TRUEQUE',
+      estado: 'EN_NEGOCIACION',
+    });
+    expect(service.findRequest('10')?.status).toBe('En negociación');
+
+    service.generateDeliveryCode(10).subscribe((codeRes) => {
+      expect(codeRes.code).toBe('A7B9X2');
+    });
+    const codeReq = httpMock.expectOne(`${baseUrl}/10/delivery-code`);
+    expect(codeReq.request.method).toBe('POST');
+    codeReq.flush({ code: 'A7B9X2', expiresAt: '2026-11-17T12:00:00' });
+
+    service.confirmDeliveryWithOtp(10, 'A7B9X2').subscribe();
+    const confirmReq = httpMock.expectOne(`${baseUrl}/10/confirm-delivery`);
+    expect(confirmReq.request.method).toBe('POST');
+    expect(confirmReq.request.body).toEqual({ code: 'A7B9X2' });
+    confirmReq.flush({
+      idTransaccion: 10,
+      idPublicacion: 1,
+      idPublicacionOfrecida: 2,
+      idSolicitante: 2,
+      idPropietario: 1,
+      tipo: 'TRUEQUE',
+      estado: 'COMPLETADA',
+      fechaCierre: '2026-11-17T11:55:00',
+    });
+    expect(service.findRequest('10')?.status).toBe('Completado');
+
+    service.rateTransaction(10, 5, 'Excelente').subscribe();
+    const rateReq = httpMock.expectOne(`${baseUrl}/10/ratings`);
+    expect(rateReq.request.method).toBe('POST');
+    expect(rateReq.request.body).toEqual({ score: 5, comment: 'Excelente' });
+    rateReq.flush({
+      idCalificacion: 1,
+      idTransaccion: 10,
+      idEmisor: 1,
+      idReceptor: 2,
+      score: 5,
+      comment: 'Excelente',
+      receptorReputacionPromedio: 5.0,
+      fechaCreacion: '2026-11-17T11:56:00',
+    });
+    expect(service.findRequest('10')?.alreadyRated).toBe(true);
   });
 });

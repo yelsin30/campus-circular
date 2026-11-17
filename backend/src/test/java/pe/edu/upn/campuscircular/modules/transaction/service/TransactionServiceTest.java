@@ -1,6 +1,8 @@
 package pe.edu.upn.campuscircular.modules.transaction.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -8,9 +10,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,11 +28,15 @@ import pe.edu.upn.campuscircular.modules.catalog.domain.EstadoPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.ModalidadPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.Publicacion;
 import pe.edu.upn.campuscircular.modules.catalog.repository.PublicacionRepository;
-import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
+import pe.edu.upn.campuscircular.modules.transaction.domain.Calificacion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
-import pe.edu.upn.campuscircular.modules.transaction.domain.Transaccion;
+import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
 import pe.edu.upn.campuscircular.modules.transaction.domain.TipoTransaccion;
+import pe.edu.upn.campuscircular.modules.transaction.domain.Transaccion;
+import pe.edu.upn.campuscircular.modules.transaction.dto.ConfirmDeliveryRequest;
+import pe.edu.upn.campuscircular.modules.transaction.dto.CreateRatingRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionRequest;
+import pe.edu.upn.campuscircular.modules.transaction.repository.CalificacionRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.OfertaTruequeRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.TransaccionRepository;
 
@@ -187,9 +198,212 @@ class TransactionServiceTest {
         verifyNoInteractions(transactionRepository, offerRepository);
     }
 
+    @Test
+    void acceptsPendingTransactionAndBlocksInvolvedPublications() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Publicacion offered = publication(202L, requester);
+        Transaccion tx = transaction(301L, requested, requester, owner, EstadoTransaccion.PENDIENTE);
+        OfertaTrueque oferta = new OfertaTrueque();
+        oferta.setTransaccion(tx);
+        oferta.setPublicacionOfrecida(offered);
+        oferta.setEstado("PENDIENTE");
+
+        when(userRepository.findByCorreoInstitucional("propietario@upn.pe"))
+            .thenReturn(Optional.of(owner));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(offerRepository.findFirstByTransaccionIdTransaccion(301L))
+            .thenReturn(Optional.of(oferta));
+        when(transactionRepository.save(any(Transaccion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.accept("propietario@upn.pe", 301L);
+
+        assertEquals(EstadoTransaccion.EN_NEGOCIACION, response.estado());
+        assertEquals(EstadoPublicacion.EN_NEGOCIACION, requested.getEstado());
+        assertEquals(EstadoPublicacion.EN_NEGOCIACION, offered.getEstado());
+    }
+
+    @Test
+    void rejectsConfirmDeliveryWithGoneWhenOtpExpired() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Transaccion tx = transaction(
+            301L, requested, requester, owner, EstadoTransaccion.EN_NEGOCIACION);
+        tx.setOtpHash(passwordEncoder.encode("A7B9X2"));
+        tx.setOtpExpiraEn(LocalDateTime.now().minusMinutes(1));
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.confirmDelivery(
+                "solicitante@upn.pe", 301L, new ConfirmDeliveryRequest("A7B9X2")));
+
+        assertEquals(410, exception.getStatusCode().value());
+    }
+
+    @Test
+    void rejectsConfirmDeliveryWithBadRequestWhenOtpIsInvalid() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Transaccion tx = transaction(
+            301L, requested, requester, owner, EstadoTransaccion.EN_NEGOCIACION);
+        tx.setOtpHash(passwordEncoder.encode("A7B9X2"));
+        tx.setOtpExpiraEn(LocalDateTime.now().plusMinutes(10));
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.confirmDelivery(
+                "solicitante@upn.pe", 301L, new ConfirmDeliveryRequest("ZZZZZZ")));
+
+        assertEquals(400, exception.getStatusCode().value());
+    }
+
+    @Test
+    void completesTransactionAndMarksPublicationsTransferredOnValidOtp() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        requested.setEstado(EstadoPublicacion.EN_NEGOCIACION);
+        Publicacion offered = publication(202L, requester);
+        offered.setEstado(EstadoPublicacion.EN_NEGOCIACION);
+        Transaccion tx = transaction(
+            301L, requested, requester, owner, EstadoTransaccion.EN_NEGOCIACION);
+        OfertaTrueque oferta = new OfertaTrueque();
+        oferta.setTransaccion(tx);
+        oferta.setPublicacionOfrecida(offered);
+        oferta.setEstado("PENDIENTE");
+
+        when(userRepository.findByCorreoInstitucional("propietario@upn.pe"))
+            .thenReturn(Optional.of(owner));
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(offerRepository.findFirstByTransaccionIdTransaccion(301L))
+            .thenReturn(Optional.of(oferta));
+        when(transactionRepository.save(any(Transaccion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var codeResponse = service.generateDeliveryCode("propietario@upn.pe", 301L);
+        assertEquals(6, codeResponse.code().length());
+        assertNotNull(tx.getOtpHash());
+
+        var completed = service.confirmDelivery(
+            "solicitante@upn.pe", 301L, new ConfirmDeliveryRequest(codeResponse.code()));
+
+        assertEquals(EstadoTransaccion.COMPLETADA, completed.estado());
+        assertNotNull(tx.getFechaCierre());
+        assertNull(tx.getOtpHash());
+        assertEquals(EstadoPublicacion.TRANSFERIDO, requested.getEstado());
+        assertEquals(EstadoPublicacion.TRANSFERIDO, offered.getEstado());
+        assertEquals("ACEPTADA", oferta.getEstado());
+    }
+
+    @Test
+    void ratesCompletedTransactionUpdatesReputationAndRejectsDuplicateWithConflict() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Transaccion tx = transaction(
+            301L, requested, requester, owner, EstadoTransaccion.COMPLETADA);
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(calificacionRepository.existsByTransaccionIdTransaccionAndEmisorIdUsuario(301L, 11L))
+            .thenReturn(false)
+            .thenReturn(true);
+        when(calificacionRepository.save(any(Calificacion.class))).thenAnswer(invocation -> {
+            Calificacion c = invocation.getArgument(0);
+            ReflectionTestUtils.setField(c, "idCalificacion", 501L);
+            return c;
+        });
+        when(calificacionRepository.calculateAverageByReceptorId(22L)).thenReturn(4.5);
+
+        var ratingResponse = service.rate(
+            "solicitante@upn.pe", 301L, new CreateRatingRequest(5, "Excelente intercambio"));
+
+        assertEquals(501L, ratingResponse.idCalificacion());
+        assertEquals(new BigDecimal("4.50"), owner.getReputacionPromedio());
+        verify(userRepository).save(owner);
+
+        ResponseStatusException duplicateEx = assertThrows(
+            ResponseStatusException.class,
+            () -> service.rate(
+                "solicitante@upn.pe", 301L, new CreateRatingRequest(4, "Duplicada")));
+
+        assertEquals(409, duplicateEx.getStatusCode().value());
+    }
+
     private static Usuario user(long id, EstadoUsuario estado) {
         Usuario usuario = new Usuario();
         ReflectionTestUtils.setField(usuario, "idUsuario", id);
+        usuario.setCorreoInstitucional("user" + id + "@upn.pe");
         usuario.setEstado(estado);
         return usuario;
     }
@@ -198,8 +412,26 @@ class TransactionServiceTest {
         Publicacion publicacion = new Publicacion();
         ReflectionTestUtils.setField(publicacion, "idPublicacion", id);
         publicacion.setUsuario(owner);
+        publicacion.setTitulo("Material #" + id);
         publicacion.setModalidad(ModalidadPublicacion.TRUEQUE);
         ReflectionTestUtils.setField(publicacion, "estado", EstadoPublicacion.DISPONIBLE);
         return publicacion;
+    }
+
+    private static Transaccion transaction(
+            long id,
+            Publicacion publicacion,
+            Usuario solicitante,
+            Usuario propietario,
+            EstadoTransaccion estado) {
+        Transaccion tx = new Transaccion();
+        ReflectionTestUtils.setField(tx, "idTransaccion", id);
+        tx.setPublicacion(publicacion);
+        tx.setSolicitante(solicitante);
+        tx.setPropietario(propietario);
+        tx.setTipo(TipoTransaccion.TRUEQUE);
+        tx.setEstado(estado);
+        tx.setFechaCreacion(LocalDateTime.now());
+        return tx;
     }
 }
