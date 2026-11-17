@@ -5,7 +5,10 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,6 +33,7 @@ import pe.edu.upn.campuscircular.modules.auth.security.JwtService;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final long TOKEN_TTL_MINUTES = 15;
 
@@ -76,11 +80,17 @@ public class AuthService {
         tokenRepository.save(tokenVerificacion);
 
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom("no-reply@upn.pe");
         message.setTo(email);
         message.setSubject("Verifica tu cuenta de Campus Circular");
         message.setText("Tu código de verificación es " + token
             + ". Vence en " + TOKEN_TTL_MINUTES + " minutos.");
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+        } catch (MailException ex) {
+            log.error("No se pudo enviar el correo de verificación a {}: {}",
+                usuario.getCorreoInstitucional(), ex.getMessage());
+        }
         return new RegistrationResponse(
             usuario.getIdUsuario(),
             usuario.getCorreoInstitucional(),

@@ -51,3 +51,9 @@ El backend envía los códigos de verificación a MailHog por SMTP en el puerto
 El catálogo público admite paginación con `page` y `size`; crear publicaciones
 requiere autenticación y acepta `categoryId`, `titulo`, `descripcion`,
 `condicion`, `modalidad` y `precioSolidario` (máximo S/ 80.00).
+
+El endpoint autenticado `POST /api/v1/transactions` crea una solicitud de
+trueque pendiente y vincula la publicación solicitada con una publicación del
+usuario autenticado. El cuerpo acepta `idPublicacion` e
+`idPublicacionOfrecida`; ambas publicaciones deben estar disponibles en
+modalidad `TRUEQUE`.
