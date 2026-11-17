@@ -16,6 +16,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import pe.edu.upn.campuscircular.modules.auth.domain.Usuario;
 
 @Entity
@@ -42,14 +45,17 @@ public class Publicacion {
     private String descripcion;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "condicion", nullable = false, length = 30)
     private CondicionPublicacion condicion;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "modalidad", nullable = false, length = 25)
     private ModalidadPublicacion modalidad;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "estado", nullable = false, length = 25)
     private EstadoPublicacion estado;
 
@@ -125,6 +131,10 @@ public class Publicacion {
 
     public EstadoPublicacion getEstado() {
         return estado;
+    }
+
+    public void setEstado(EstadoPublicacion estado) {
+        this.estado = estado;
     }
 
     public BigDecimal getPrecioSolidario() {

@@ -54,6 +54,11 @@ public class TransactionService {
         Publicacion solicitada = publicacionRepository.findById(request.idPublicacion())
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "La publicación solicitada no existe"));
+        if (solicitada.getUsuario().getIdUsuario().equals(solicitante.getIdUsuario())) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "No puedes solicitar un trueque sobre tu propia publicación");
+        }
+
         Publicacion ofrecida = publicacionRepository.findById(request.idPublicacionOfrecida())
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "La publicación ofrecida no existe"));
@@ -61,10 +66,6 @@ public class TransactionService {
         if (solicitada.getIdPublicacion().equals(ofrecida.getIdPublicacion())) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST, "Las publicaciones solicitada y ofrecida deben ser distintas");
-        }
-        if (solicitada.getUsuario().getIdUsuario().equals(solicitante.getIdUsuario())) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "No se puede solicitar una publicación propia");
         }
         if (!ofrecida.getUsuario().getIdUsuario().equals(solicitante.getIdUsuario())) {
             throw new ResponseStatusException(
@@ -92,11 +93,17 @@ public class TransactionService {
     }
 
     private static void requireAvailableTrade(Publicacion publicacion, String role) {
-        if (publicacion.getEstado() != EstadoPublicacion.DISPONIBLE
-                || publicacion.getModalidad() != ModalidadPublicacion.TRUEQUE) {
+        if (publicacion.getEstado() != EstadoPublicacion.DISPONIBLE) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "La publicación " + role + " no está disponible para trueque");
+                "La publicación " + role + " no está disponible para trueque porque su estado es "
+                    + publicacion.getEstado() + " (se requiere DISPONIBLE)");
+        }
+        if (publicacion.getModalidad() != ModalidadPublicacion.TRUEQUE) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "La publicación " + role + " no permite trueque porque su modalidad es "
+                    + publicacion.getModalidad() + " (se requiere TRUEQUE)");
         }
     }
 }

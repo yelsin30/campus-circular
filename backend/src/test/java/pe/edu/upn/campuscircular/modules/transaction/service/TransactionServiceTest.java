@@ -103,6 +103,90 @@ class TransactionServiceTest {
         verifyNoInteractions(transactionRepository, offerRepository);
     }
 
+    @Test
+    void rejectsTradeWhenRequestingOwnPublication() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository);
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(publicationRepository.findById(101L))
+            .thenReturn(Optional.of(publication(101L, requester)));
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.create(
+                "solicitante@upn.pe", new CreateTransactionRequest(101L, 101L)));
+
+        assertEquals(400, exception.getStatusCode().value());
+        assertEquals("No puedes solicitar un trueque sobre tu propia publicación", exception.getReason());
+        verifyNoInteractions(transactionRepository, offerRepository);
+    }
+
+    @Test
+    void rejectsTradeWithSpecificMessageWhenRequestedModalityIsNotTrueque() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository);
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        requested.setModalidad(ModalidadPublicacion.VENTA_SOLIDARIA);
+        Publicacion offered = publication(202L, requester);
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(publicationRepository.findById(101L)).thenReturn(Optional.of(requested));
+        when(publicationRepository.findById(202L)).thenReturn(Optional.of(offered));
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.create(
+                "solicitante@upn.pe", new CreateTransactionRequest(101L, 202L)));
+
+        assertEquals(409, exception.getStatusCode().value());
+        assertEquals(
+            "La publicación solicitada no permite trueque porque su modalidad es VENTA_SOLIDARIA (se requiere TRUEQUE)",
+            exception.getReason());
+        verifyNoInteractions(transactionRepository, offerRepository);
+    }
+
+    @Test
+    void rejectsTradeWithSpecificMessageWhenPublicationStatusIsNotDisponible() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository);
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        requested.setEstado(EstadoPublicacion.EN_NEGOCIACION);
+        Publicacion offered = publication(202L, requester);
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(publicationRepository.findById(101L)).thenReturn(Optional.of(requested));
+        when(publicationRepository.findById(202L)).thenReturn(Optional.of(offered));
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.create(
+                "solicitante@upn.pe", new CreateTransactionRequest(101L, 202L)));
+
+        assertEquals(409, exception.getStatusCode().value());
+        assertEquals(
+            "La publicación solicitada no está disponible para trueque porque su estado es EN_NEGOCIACION (se requiere DISPONIBLE)",
+            exception.getReason());
+        verifyNoInteractions(transactionRepository, offerRepository);
+    }
+
     private static Usuario user(long id, EstadoUsuario estado) {
         Usuario usuario = new Usuario();
         ReflectionTestUtils.setField(usuario, "idUsuario", id);

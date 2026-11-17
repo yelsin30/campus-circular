@@ -98,11 +98,12 @@
           @if (priceModeSelected) {
             <div class="field-block price-field">
               <label for="material-price">Precio del material (S/) <span>*</span></label>
-              <div class="price-input-wrap"><span>S/</span><input id="material-price" type="number" formControlName="price" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" [class.invalid]="fieldInvalid('price')" /></div>
+              <div class="price-input-wrap"><span>S/</span><input id="material-price" type="number" formControlName="price" min="0.01" max="80" step="0.01" inputmode="decimal" placeholder="0.00" [class.invalid]="fieldInvalid('price')" /></div>
               @if (fieldInvalid('price')) {
                 <small class="field-error">
                   @if (form.controls.price.hasError('required')) { Ingresa el precio del material. }
                   @else if (form.controls.price.hasError('min')) { El precio debe ser mayor que S/ 0. }
+                  @else if (form.controls.price.hasError('max')) { El precio solidario no puede superar S/ 80.00 PEN. }
                   @else { Ingresa un precio válido con máximo dos decimales. }
                 </small>
               }
@@ -126,10 +127,8 @@
       }
       <div class="form-actions">
         <button class="cancel-button" type="button" (click)="cancel()">Cancelar</button>
-        <button class="publish-button" type="submit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h13l-3-3m4 13H6l3 3" /><path d="M18 7V4M6 17v3" /></svg>Publicar material</button>
+        <button class="publish-button" type="submit" [disabled]="submitting"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h13l-3-3m4 13H6l3 3" /><path d="M18 7V4M6 17v3" /></svg>{{ submitting ? 'Publicando...' : 'Publicar material' }}</button>
       </div>
     </section>
   </form>
-
-  <p class="memory-note">Modo de demostración: las publicaciones se conservan en memoria durante esta sesión y se perderán al recargar la aplicación.</p>
 </main>

@@ -9,7 +9,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "usuario")
@@ -27,15 +31,27 @@ public class Usuario {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "rol", nullable = false, length = 20)
     private RolUsuario rol;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "estado", nullable = false, length = 20)
     private EstadoUsuario estado;
 
     @Column(name = "reputacion_promedio", precision = 3, scale = 2)
     private BigDecimal reputacionPromedio;
+
+    @PrePersist
+    void setDefaults() {
+        if (rol == null) {
+            rol = RolUsuario.USUARIO;
+        }
+        if (estado == null) {
+            estado = EstadoUsuario.INACTIVO;
+        }
+    }
 
     public Long getIdUsuario() {
         return idUsuario;
@@ -75,5 +91,9 @@ public class Usuario {
 
     public BigDecimal getReputacionPromedio() {
         return reputacionPromedio;
+    }
+
+    public void setReputacionPromedio(BigDecimal reputacionPromedio) {
+        this.reputacionPromedio = reputacionPromedio;
     }
 }

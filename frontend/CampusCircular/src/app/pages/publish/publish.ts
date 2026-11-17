@@ -1,11 +1,12 @@
 import { isPlatformBrowser } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, PLATFORM_ID } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { ExchangeMode, MaterialArt, MaterialCategory, MarketplaceMaterial } from '../../data/material-catalog';
-import { MaterialCatalogService } from '../../data/material-catalog.service';
+import { ExchangeMode, MaterialCategory, MarketplaceMaterial } from '../../data/material-catalog';
 import { ModerationService } from '../../data/moderation.service';
+import { CreatePublicationRequestDto, PublicationService } from '../../data/publication.service';
 import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 
 @Component({
@@ -17,7 +18,7 @@ import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 })
 export class PublishPage {
   private readonly fb = inject(FormBuilder).nonNullable;
-  private readonly catalog = inject(MaterialCatalogService);
+  private readonly publicationService = inject(PublicationService);
   private readonly moderation = inject(ModerationService);
   private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
@@ -41,16 +42,16 @@ export class PublishPage {
     career: ['', Validators.required],
     category: ['' as MaterialCategory | '', Validators.required],
     condition: ['' as string, Validators.required],
-    mode: ['' as ExchangeMode | '', Validators.required],
+    mode: ['Trueque' as ExchangeMode | '', Validators.required],
     price: [''],
   });
 
   previews: ImagePreview[] = [];
   photoErrors: string[] = [];
   submitted = false;
+  submitting = false;
   publishMessage = '';
   publishedMaterial: MarketplaceMaterial | null = null;
-  private publicationSequence = 0;
 
   constructor() {
     this.form.controls.mode.valueChanges
@@ -76,19 +77,24 @@ export class PublishPage {
   }
 
   cancel(): void {
-    if (this.hasUnsavedChanges && isPlatformBrowser(this.platformId) && !globalThis.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos?')) {
+    if (
+      this.hasUnsavedChanges &&
+      isPlatformBrowser(this.platformId) &&
+      !globalThis.confirm('Tienes cambios sin guardar. ¿Deseas descartarlos?')
+    ) {
       return;
     }
 
     void this.router.navigateByUrl('/inicio');
   }
 
-  async publish(): Promise<void> {
+  publish(): void {
     this.submitted = true;
+    this.publishMessage = '';
     this.form.markAllAsTouched();
 
     if (this.moderation.isUserSuspended('María Pérez')) {
-      this.publishMessage = 'La cuenta de demostración está suspendida y no puede publicar materiales.';
+      this.publishMessage = 'La cuenta está suspendida y no puede publicar materiales.';
       return;
     }
 
@@ -100,82 +106,67 @@ export class PublishPage {
     const value = this.form.getRawValue();
     const mode = value.mode as ExchangeMode;
     const category = value.category as MaterialCategory;
-    const id = this.createMaterialId();
-    const art = this.artForCategory(category);
-    const imageData = this.previews.map((preview) => preview.dataUrl);
-    const price = mode === 'Precio solidario' ? Number(value.price) : undefined;
+    const categoryId = this.publicationService.toCategoryId(category) ?? 1;
+    const modalidad = this.publicationService.toBackendModality(mode);
+    const condicion = this.publicationService.toBackendCondition(value.condition);
+    const precioSolidario = modalidad === 'VENTA_SOLIDARIA' ? Number(value.price) : null;
 
-    const material: MarketplaceMaterial = {
-      id,
-      title: value.title.trim(),
-      category,
-      career: value.career,
-      condition: value.condition === 'Repuestos / Scrap (RAEE)' ? 'Repuestos / Scrap' : value.condition as MarketplaceMaterial['condition'],
-      mode,
-      owner: 'María Pérez',
-      initials: 'MP',
-      ...(price === undefined ? {} : { price }),
-      art,
-      background: this.backgroundForCategory(category),
-      publishedAt: Date.now() + this.publicationSequence,
-      publishedLabel: 'ahora',
-      campus: 'Sede Breña · Lima',
-      publisher: 'María Pérez',
-      description: value.description.trim(),
-      rating: 5,
-      ratingCount: 0,
-      offeredExamples: mode === 'Trueque' ? ['Material por acordar con el propietario'] : [],
-      ...(imageData.length ? { images: imageData } : {}),
+    const payload: CreatePublicationRequestDto = {
+      categoryId,
+      titulo: value.title.trim(),
+      descripcion: value.description.trim(),
+      condicion,
+      modalidad,
+      precioSolidario,
     };
 
-    this.catalog.publish(material);
-    this.publishedMaterial = material;
-    this.publishMessage = 'Publicación de demostración agregada al catálogo en memoria. Se perderá al recargar la aplicación.';
-    this.previews = [];
-    this.photoErrors = [];
-    this.form.reset({ title: '', description: '', career: '', category: '', condition: '', mode: '', price: '' });
-    this.form.markAsPristine();
-    this.form.markAsUntouched();
-    this.submitted = false;
+    this.submitting = true;
+    this.publicationService.createPublication(payload).subscribe({
+      next: () => {
+        this.submitting = false;
+        this.previews = [];
+        this.photoErrors = [];
+        this.form.reset({
+          title: '',
+          description: '',
+          career: '',
+          category: '',
+          condition: '',
+          mode: 'Trueque',
+          price: '',
+        });
+        this.form.markAsPristine();
+        this.form.markAsUntouched();
+        this.submitted = false;
+        void this.router.navigateByUrl('/inicio');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.submitting = false;
+        const backendMsg = err.error?.message as string | undefined;
+        if (err.status === 401 || err.status === 403) {
+          this.publishMessage = backendMsg || 'Debes iniciar sesión con una cuenta activa para publicar.';
+        } else if (err.status === 400) {
+          this.publishMessage = backendMsg || 'Datos inválidos. Verifica que el precio solidario no supere S/ 80.00.';
+        } else {
+          this.publishMessage = backendMsg || 'No se pudo registrar la publicación en el servidor.';
+        }
+      },
+    });
   }
 
   private setPriceValidation(mode: string): void {
     const priceControl = this.form.controls.price;
-    if (mode === 'Precio solidario') {
+    if (mode === 'Precio solidario' || mode === 'VENTA_SOLIDARIA') {
       priceControl.setValidators([
         Validators.required,
         Validators.pattern(/^\d+(?:\.\d{1,2})?$/),
         Validators.min(0.01),
+        Validators.max(80),
       ]);
     } else {
       priceControl.clearValidators();
       priceControl.setValue('');
     }
     priceControl.updateValueAndValidity({ emitEvent: false });
-  }
-
-  private createMaterialId(): string {
-    this.publicationSequence += 1;
-    return `material-${Date.now().toString(36)}-${this.publicationSequence.toString(36)}`;
-  }
-
-  private artForCategory(category: MaterialCategory): MaterialArt {
-    switch (category) {
-      case 'Libros': return 'calculus';
-      case 'Apuntes': return 'notes';
-      case 'Equipos': return 'calculator';
-      case 'Materiales': return 'backpack';
-      case 'Otros': return 'arduino';
-    }
-  }
-
-  private backgroundForCategory(category: MaterialCategory): string {
-    switch (category) {
-      case 'Libros': return '#f0f2f4';
-      case 'Apuntes': return '#f4f2ec';
-      case 'Equipos': return '#eef1f4';
-      case 'Materiales': return '#edf1e7';
-      case 'Otros': return '#f2f0e8';
-    }
   }
 }

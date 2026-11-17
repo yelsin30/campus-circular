@@ -1,5 +1,5 @@
 <div class="marketplace">
-  <app-home-hero [searchTerm]="searchTerm" (searchChanged)="searchTerm = $event" />
+  <app-home-hero [searchTerm]="searchTerm" (searchChanged)="onSearchChanged($event)" />
   <app-category-nav [categories]="categories" [selectedCategory]="selectedCategory" (categorySelected)="selectCategory($event)" />
 
   <section class="results-layout" aria-label="Materiales disponibles">

@@ -1,4 +1,7 @@
+import { HttpClient } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { ExchangeMode } from './material-catalog';
 import { MaterialCatalogService } from './material-catalog.service';
 import { ModerationService } from './moderation.service';
@@ -6,6 +9,29 @@ import { ModerationService } from './moderation.service';
 export type ExchangeStatus = 'Pendiente' | 'En negociación' | 'Aceptado' | 'Rechazado' | 'Cancelado' | 'Completado';
 export type ExchangeTab = 'received' | 'sent' | 'completed';
 export type ExchangeRole = 'requester' | 'owner';
+export type BackendTransactionType = 'TRUEQUE' | 'DONACION' | 'VENTA_SOLIDARIA';
+
+export interface CreateTransactionRequestDto {
+  publicationId: number;
+  type: BackendTransactionType;
+  offeredPublicationId?: number | null;
+  idPublicacion: number;
+  idPublicacionOfrecida: number;
+}
+
+export interface TransactionResponseDto {
+  transactionId?: number;
+  state?: string;
+  ownerNotified?: boolean;
+  idTransaccion?: number;
+  idPublicacion?: number;
+  idPublicacionOfrecida?: number;
+  idSolicitante?: number;
+  idPropietario?: number;
+  tipo?: BackendTransactionType;
+  estado?: string;
+  fechaCreacion?: string;
+}
 
 export interface ExchangeRating {
   reviewer: string;
@@ -45,13 +71,43 @@ const ACTIVE_STATUSES: ExchangeStatus[] = ['Pendiente', 'En negociación', 'Acep
 
 @Injectable({ providedIn: 'root' })
 export class ExchangeService {
+  private readonly http = inject(HttpClient);
   private readonly catalog = inject(MaterialCatalogService);
   private readonly moderation = inject(ModerationService);
+  private readonly baseUrl = `${environment.apiUrl}/transactions`;
+
   private readonly requestsSignal = signal<ExchangeRequest[]>(this.createDemoRequests());
   readonly requests = this.requestsSignal.asReadonly();
   readonly currentUser = CURRENT_USER;
   readonly demoOtp = '482931';
   private sequence = 0;
+
+  createTransaction(
+    payload: CreateTransactionRequestDto,
+    meta?: { materialId: string; owner: string; mode: ExchangeMode; message?: string; offeredMaterial?: string },
+  ): Observable<TransactionResponseDto> {
+    return this.http.post<TransactionResponseDto>(this.baseUrl, payload).pipe(
+      tap((response) => {
+        const txId = response.transactionId ?? response.idTransaccion ?? Date.now();
+        const request: ExchangeRequest = {
+          id: `tx-${txId}`,
+          materialId: meta?.materialId ?? String(payload.publicationId),
+          requester: CURRENT_USER,
+          owner: meta?.owner ?? `Usuario #${response.idPropietario ?? ''}`,
+          mode: meta?.mode ?? 'Trueque',
+          status: 'Pendiente',
+          requestedAt: Date.now(),
+          dateLabel: this.formatDate(Date.now()),
+          ...(meta?.message?.trim() ? { message: meta.message.trim() } : {}),
+          ...(meta?.offeredMaterial?.trim() ? { offeredMaterial: meta.offeredMaterial.trim() } : {}),
+          requesterConfirmed: false,
+          ownerConfirmed: false,
+          ratings: [],
+        };
+        this.requestsSignal.update((requests) => [request, ...requests]);
+      }),
+    );
+  }
 
   getRequests(tab: ExchangeTab): ExchangeRequest[] {
     const requests = this.requestsSignal();
@@ -70,10 +126,11 @@ export class ExchangeService {
     if (material.owner === CURRENT_USER) return { success: false, reason: 'own-material' };
     if (this.moderation.isUserSuspended(CURRENT_USER)) return { success: false, reason: 'suspended' };
 
-    const duplicate = this.requestsSignal().some((request) =>
-      request.materialId === materialId
-      && request.requester === CURRENT_USER
-      && ACTIVE_STATUSES.includes(request.status),
+    const duplicate = this.requestsSignal().some(
+      (request) =>
+        request.materialId === materialId &&
+        request.requester === CURRENT_USER &&
+        ACTIVE_STATUSES.includes(request.status),
     );
     if (duplicate) return { success: false, reason: 'duplicate' };
 
@@ -155,7 +212,7 @@ export class ExchangeService {
       success: true,
       message: latest?.ownerConfirmed && latest.requesterConfirmed
         ? 'Ambas partes confirmaron. El intercambio se completó.'
-        : 'Confirmación de demostración registrada para esta parte. Falta la otra persona.',
+        : 'Confirmación registrada para esta parte. Falta la otra persona.',
     };
   }
 

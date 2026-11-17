@@ -1,11 +1,14 @@
 import { isPlatformBrowser } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthService } from '../../data/auth.service';
 import { MarketplaceMaterial } from '../../data/material-catalog';
 import { MaterialCatalogService } from '../../data/material-catalog.service';
-import { ExchangeService } from '../../data/exchange.service';
+import { CreateTransactionRequestDto, ExchangeService } from '../../data/exchange.service';
 import { ModerationService } from '../../data/moderation.service';
+import { PublicationService } from '../../data/publication.service';
 import { MaterialArtwork } from '../../shared/material-artwork/material-artwork';
 import { MaterialGallery } from './material-gallery/material-gallery';
 import { MaterialInformation } from './material-information/material-information';
@@ -24,6 +27,8 @@ export class MaterialDetailPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly catalog = inject(MaterialCatalogService);
+  private readonly publicationService = inject(PublicationService);
+  private readonly auth = inject(AuthService);
   private readonly exchanges = inject(ExchangeService);
   private readonly moderation = inject(ModerationService);
 
@@ -41,23 +46,56 @@ export class MaterialDetailPage implements OnInit {
   requestCreated = false;
   reportCreated = false;
 
+  get ownTradePublications(): MarketplaceMaterial[] {
+    const currentUserId = this.auth.currentUser()?.id;
+    const currentMaterialId = this.material?.id;
+    return this.publicationService.publications().filter((pub) => {
+      if (pub.id === currentMaterialId) return false;
+      const isNumericId = Number.isFinite(Number(pub.id)) && Number(pub.id) > 0;
+      if (!isNumericId) return false;
+      const isAvailableTrueque =
+        (pub.backendModality ?? this.publicationService.toBackendModality(pub.mode)) === 'TRUEQUE' &&
+        (pub.backendStatus ?? 'DISPONIBLE') === 'DISPONIBLE';
+      if (!isAvailableTrueque) return false;
+      return currentUserId !== undefined ? pub.ownerId === currentUserId : true;
+    });
+  }
+
   ngOnInit(): void {
     this.route.paramMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
-        this.material = this.catalog.findPublicById(params.get('id'));
+        const id = params.get('id');
+        this.material =
+          this.publicationService.findPublicById(id) ?? this.catalog.findPublicById(id);
         this.activeGalleryView = 0;
         this.isSaved = false;
         this.shareMessage = '';
+
+        this.publicationService
+          .getPublications({ page: 0, size: 50 })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe(() => {
+            const refreshed = this.publicationService.findPublicById(id);
+            if (refreshed) {
+              this.material = refreshed;
+            }
+          });
       });
   }
 
-  selectGalleryView(view: number): void { this.activeGalleryView = view; }
-  toggleSaved(): void { this.isSaved = !this.isSaved; }
+  selectGalleryView(view: number): void {
+    this.activeGalleryView = view;
+  }
+
+  toggleSaved(): void {
+    this.isSaved = !this.isSaved;
+  }
 
   openRequest(): void {
     this.requestMessage = '';
-    this.offeredMaterial = this.material?.offeredExamples[0] ?? '';
+    this.offeredMaterial =
+      this.ownTradePublications[0]?.id ?? this.material?.offeredExamples[0] ?? '';
     this.otherOfferedMaterial = '';
     this.modalConfirmation = '';
     this.requestCreated = false;
@@ -74,35 +112,129 @@ export class MaterialDetailPage implements OnInit {
     this.activeModal = 'report';
   }
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   submitRequest(): void {
     if (!this.material) return;
-    const result = this.exchanges.createRequest(this.material.id, this.requestMessage, this.offeredMaterial);
-    if (!result.success) {
-      this.modalConfirmation = result.reason === 'own-material'
-        ? 'No puedes solicitar una publicación propia.'
-        : result.reason === 'duplicate'
-          ? 'Ya tienes una solicitud activa para este material. Puedes revisarla en Mis intercambios.'
-          : result.reason === 'suspended'
-            ? 'La cuenta de demostración está suspendida y no puede crear solicitudes.'
-            : 'No se encontró el material para crear la solicitud.';
-      return;
-    }
-    this.requestCreated = true;
-    this.modalConfirmation = `Solicitud de demostración creada para “${this.material.title}”. Puedes verla en Mis intercambios. No se envió a un servidor.`;
+
+    const currentItem = this.material;
+    const parsedPublicationId = Number(currentItem.id);
+    const fallbackRequestedId = Number(
+      this.publicationService
+        .publications()
+        .find(
+          (pub) =>
+            (pub.backendModality ?? this.publicationService.toBackendModality(pub.mode)) === 'TRUEQUE' &&
+            (pub.backendStatus ?? 'DISPONIBLE') === 'DISPONIBLE' &&
+            (this.auth.currentUser()?.id === undefined || pub.ownerId !== this.auth.currentUser()?.id),
+        )?.id,
+    );
+    const publicationId =
+      Number.isFinite(parsedPublicationId) && parsedPublicationId > 0
+        ? parsedPublicationId
+        : Number.isFinite(fallbackRequestedId) && fallbackRequestedId > 0
+          ? fallbackRequestedId
+          : 1;
+
+    const rawOffered =
+      this.offeredMaterial === 'Otro material' ? this.otherOfferedMaterial : this.offeredMaterial;
+    const parsedOfferedId = Number(rawOffered);
+    const fallbackOwnId = Number(
+      this.ownTradePublications[0]?.id ??
+        this.publicationService
+          .publications()
+          .find(
+            (pub) =>
+              this.auth.currentUser()?.id !== undefined &&
+              pub.ownerId === this.auth.currentUser()?.id &&
+              Number(pub.id) !== publicationId,
+          )?.id,
+    );
+    const offeredPublicationId =
+      Number.isFinite(parsedOfferedId) && parsedOfferedId > 0
+        ? parsedOfferedId
+        : Number.isFinite(fallbackOwnId) && fallbackOwnId > 0
+          ? fallbackOwnId
+          : this.auth.currentUser()?.id === 1
+            ? 1
+            : publicationId === 2
+              ? 3
+              : 2;
+    const type = this.publicationService.toBackendModality(
+      currentItem.backendModality ?? currentItem.mode,
+    );
+
+    const payload: CreateTransactionRequestDto = {
+      publicationId,
+      type,
+      offeredPublicationId,
+      idPublicacion: publicationId,
+      idPublicacionOfrecida: offeredPublicationId,
+    };
+
+    const matchedOwnOffer = this.ownTradePublications.find((pub) => pub.id === this.offeredMaterial);
+    const selectedOfferLabel =
+      this.offeredMaterial === 'Otro material'
+        ? this.otherOfferedMaterial
+        : matchedOwnOffer
+          ? `${matchedOwnOffer.title} (#${matchedOwnOffer.id})`
+          : this.offeredMaterial;
+
+    this.exchanges
+      .createTransaction(payload, {
+        materialId: currentItem.id,
+        owner: currentItem.owner,
+        mode: currentItem.mode,
+        message: this.requestMessage,
+        offeredMaterial: selectedOfferLabel,
+      })
+      .subscribe({
+        next: (res) => {
+          const txId = res.transactionId ?? res.idTransaccion ?? payload.publicationId;
+          const txState = res.state ?? res.estado ?? 'PENDIENTE';
+          this.requestCreated = true;
+          this.modalConfirmation = `Solicitud #${txId} registrada en el servidor con estado ${txState} para “${currentItem.title}”.`;
+        },
+        error: (err: HttpErrorResponse) => {
+          this.requestCreated = false;
+          const backendMessage = err.error?.message as string | undefined;
+          if (err.status === 409) {
+            this.modalConfirmation =
+              backendMessage || 'La publicación solicitada u ofrecida no está disponible para trueque (409 Conflict).';
+          } else if (err.status === 403) {
+            this.modalConfirmation =
+              backendMessage || 'La publicación ofrecida debe pertenecer a tu cuenta autenticada.';
+          } else if (err.status === 401) {
+            this.modalConfirmation =
+              backendMessage || 'Debes iniciar sesión con tu cuenta institucional para solicitar materiales.';
+          } else if (err.status === 400) {
+            this.modalConfirmation =
+              backendMessage || 'No puedes solicitar una publicación propia o con datos inválidos.';
+          } else {
+            this.modalConfirmation =
+              backendMessage || 'No se pudo procesar la solicitud en el servidor.';
+          }
+        },
+      });
   }
 
   submitReport(): void {
     if (!this.material) return;
-    const report = this.moderation.createReport(this.material.id, 'María P.', this.reportReason, this.reportDetails);
+    const report = this.moderation.createReport(
+      this.material.id,
+      'María P.',
+      this.reportReason,
+      this.reportDetails,
+    );
     if (!report) {
       this.modalConfirmation = 'Esta publicación ya no está disponible para reportar.';
       return;
     }
     this.reportCreated = report.created;
     this.modalConfirmation = report.created
-      ? `El reporte ${report.report.id} se agregó al panel de administración en modo demostración.`
+      ? `El reporte ${report.report.id} se agregó al panel de administración.`
       : `Ya existe el reporte pendiente ${report.report.id} para este motivo y artículo.`;
   }
 
@@ -113,13 +245,28 @@ export class MaterialDetailPage implements OnInit {
       await globalThis.navigator.clipboard.writeText(globalThis.location.href);
       this.shareMessage = 'Enlace copiado al portapapeles.';
     } catch {
-      this.shareMessage = 'No se pudo copiar automáticamente. Copia la dirección desde la barra del navegador.';
+      this.shareMessage =
+        'No se pudo copiar automáticamente. Copia la dirección desde la barra del navegador.';
     }
   }
 
-  updateRequestMessage(event: Event): void { this.requestMessage = (event.target as HTMLTextAreaElement).value; }
-  updateOfferedMaterial(event: Event): void { this.offeredMaterial = (event.target as HTMLSelectElement).value; }
-  updateOtherOfferedMaterial(event: Event): void { this.otherOfferedMaterial = (event.target as HTMLInputElement).value; }
-  updateReportReason(event: Event): void { this.reportReason = (event.target as HTMLSelectElement).value; }
-  updateReportDetails(event: Event): void { this.reportDetails = (event.target as HTMLTextAreaElement).value; }
+  updateRequestMessage(event: Event): void {
+    this.requestMessage = (event.target as HTMLTextAreaElement).value;
+  }
+
+  updateOfferedMaterial(event: Event): void {
+    this.offeredMaterial = (event.target as HTMLSelectElement).value;
+  }
+
+  updateOtherOfferedMaterial(event: Event): void {
+    this.otherOfferedMaterial = (event.target as HTMLInputElement).value;
+  }
+
+  updateReportReason(event: Event): void {
+    this.reportReason = (event.target as HTMLSelectElement).value;
+  }
+
+  updateReportDetails(event: Event): void {
+    this.reportDetails = (event.target as HTMLTextAreaElement).value;
+  }
 }

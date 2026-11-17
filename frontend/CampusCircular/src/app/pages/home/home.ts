@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
-import { MaterialCondition, ExchangeMode } from '../../data/material-catalog';
-import { MaterialCatalogService } from '../../data/material-catalog.service';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ExchangeMode, MarketplaceMaterial, MaterialCondition } from '../../data/material-catalog';
+import { PublicationQueryParams, PublicationService } from '../../data/publication.service';
 import { CategoryNav } from './category-nav/category-nav';
 import { HomeHero } from './home-hero/home-hero';
 import { MaterialCard } from './material-card/material-card';
@@ -12,8 +13,10 @@ import { MaterialCard } from './material-card/material-card';
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
-export class HomePage {
-  private readonly catalog = inject(MaterialCatalogService);
+export class HomePage implements OnInit {
+  private readonly publicationService = inject(PublicationService);
+  private readonly destroyRef = inject(DestroyRef);
+
   readonly categories: { label: string; icon: string }[] = [
     { label: 'Todos', icon: 'all' },
     { label: 'Libros', icon: 'book' },
@@ -40,40 +43,51 @@ export class HomePage {
   searchTerm = '';
   sortOrder = 'recent';
   favorites = new Set<string>();
+  materials: MarketplaceMaterial[] = [];
 
-  get filteredMaterials() {
-    const query = this.searchTerm.trim().toLocaleLowerCase('es');
-    const filtered = this.catalog.publicMaterials().filter((material) => {
-      const matchesCategory = this.selectedCategory === 'Todos' || material.category === this.selectedCategory;
-      const matchesCareer = this.selectedCareer === 'Todas las carreras' || material.career.startsWith(this.selectedCareer);
-      const matchesConditions = this.selectedConditions.size === 0 || this.selectedConditions.has(material.condition);
-      const matchesModes = this.selectedModes.size === 0 || this.selectedModes.has(material.mode);
-      const matchesQuery = !query || `${material.title} ${material.category} ${material.owner}`
-        .toLocaleLowerCase('es')
-        .includes(query);
+  ngOnInit(): void {
+    this.fetchPublications();
+  }
 
-      return matchesCategory && matchesCareer && matchesConditions && matchesModes && matchesQuery;
+  get filteredMaterials(): MarketplaceMaterial[] {
+    const list = this.materials.filter((material) => {
+      const matchesConditions =
+        this.selectedConditions.size <= 1 || this.selectedConditions.has(material.condition);
+      const matchesModes =
+        this.selectedModes.size <= 1 || this.selectedModes.has(material.mode);
+      return matchesConditions && matchesModes;
     });
 
-    return filtered.sort((first, second) => this.sortOrder === 'price'
-      ? (first.price ?? 0) - (second.price ?? 0)
-      : second.publishedAt - first.publishedAt);
+    return [...list].sort((first, second) =>
+      this.sortOrder === 'price'
+        ? (first.price ?? 0) - (second.price ?? 0)
+        : second.publishedAt - first.publishedAt,
+    );
+  }
+
+  onSearchChanged(term: string): void {
+    this.searchTerm = term;
+    this.fetchPublications();
   }
 
   selectCategory(category: string): void {
     this.selectedCategory = category;
+    this.fetchPublications();
   }
 
   updateCareer(event: Event): void {
     this.selectedCareer = (event.target as HTMLSelectElement).value;
+    this.fetchPublications();
   }
 
   toggleCondition(condition: MaterialCondition, event: Event): void {
     this.toggleFilter(this.selectedConditions, condition, event);
+    this.fetchPublications();
   }
 
   toggleMode(mode: ExchangeMode, event: Event): void {
     this.toggleFilter(this.selectedModes, mode, event);
+    this.fetchPublications();
   }
 
   toggleFavorite(id: string): void {
@@ -93,10 +107,39 @@ export class HomePage {
     this.selectedModes = new Set<ExchangeMode>();
     this.searchTerm = '';
     this.sortOrder = 'recent';
+    this.fetchPublications();
   }
 
   updateSort(event: Event): void {
     this.sortOrder = (event.target as HTMLSelectElement).value;
+  }
+
+  private fetchPublications(): void {
+    const firstCondition = [...this.selectedConditions][0];
+    const firstMode = [...this.selectedModes][0];
+    const categoryId =
+      this.selectedCategory !== 'Todos'
+        ? this.publicationService.toCategoryId(this.selectedCategory)
+        : undefined;
+
+    const queryParams: PublicationQueryParams = {
+      ...(this.selectedCareer !== 'Todas las carreras' ? { carrera: this.selectedCareer } : {}),
+      ...(categoryId !== undefined ? { category: categoryId } : {}),
+      ...(firstCondition
+        ? { condition: this.publicationService.toBackendCondition(firstCondition) }
+        : {}),
+      ...(firstMode ? { modality: this.publicationService.toBackendModality(firstMode) } : {}),
+      ...(this.searchTerm.trim() ? { q: this.searchTerm.trim() } : {}),
+      page: 0,
+      size: 20,
+    };
+
+    this.publicationService
+      .getPublications(queryParams)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((items) => {
+        this.materials = items;
+      });
   }
 
   private toggleFilter<T>(selected: Set<T>, value: T, event: Event): void {

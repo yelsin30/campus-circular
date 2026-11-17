@@ -112,6 +112,7 @@ public class PublicationService {
         publication.setDescripcion(request.descripcion().trim());
         publication.setCondicion(request.condicion());
         publication.setModalidad(request.modalidad());
+        publication.setEstado(EstadoPublicacion.DISPONIBLE);
         publication.setPrecioSolidario(request.precioSolidario());
         return CreatedPublicationResponse.from(publicacionRepository.save(publication));
     }

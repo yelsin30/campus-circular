@@ -15,6 +15,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import pe.edu.upn.campuscircular.modules.auth.domain.Usuario;
 import pe.edu.upn.campuscircular.modules.catalog.domain.Publicacion;
 
@@ -40,15 +43,26 @@ public class Transaccion {
     private Usuario propietario;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "tipo", nullable = false, length = 25)
     private TipoTransaccion tipo;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "estado", nullable = false, length = 25)
     private EstadoTransaccion estado;
 
+    @Column(name = "otp_hash", length = 255)
+    private String otpHash;
+
+    @Column(name = "otp_expira_en")
+    private LocalDateTime otpExpiraEn;
+
     @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion;
+
+    @Column(name = "fecha_cierre")
+    private LocalDateTime fechaCierre;
 
     public Transaccion() {}
 
@@ -106,11 +120,35 @@ public class Transaccion {
         this.estado = estado;
     }
 
+    public String getOtpHash() {
+        return otpHash;
+    }
+
+    public void setOtpHash(String otpHash) {
+        this.otpHash = otpHash;
+    }
+
+    public LocalDateTime getOtpExpiraEn() {
+        return otpExpiraEn;
+    }
+
+    public void setOtpExpiraEn(LocalDateTime otpExpiraEn) {
+        this.otpExpiraEn = otpExpiraEn;
+    }
+
     public LocalDateTime getFechaCreacion() {
         return fechaCreacion;
     }
 
     public void setFechaCreacion(LocalDateTime fechaCreacion) {
         this.fechaCreacion = fechaCreacion;
+    }
+
+    public LocalDateTime getFechaCierre() {
+        return fechaCierre;
+    }
+
+    public void setFechaCierre(LocalDateTime fechaCierre) {
+        this.fechaCierre = fechaCierre;
     }
 }
