@@ -37,8 +37,12 @@ public class SecurityConfig {
                     "/api/v1/auth/login"
                 ).permitAll()
                 .requestMatchers(
-                    HttpMethod.GET, "/api/v1/publications", "/api/v1/publications/**"
+                    HttpMethod.GET,
+                    "/api/v1/publications",
+                    "/api/v1/publications/**",
+                    "/api/v1/metrics/**"
                 ).permitAll()
+                .requestMatchers("/api/v1/admin/**").hasAnyRole("ADMIN", "ADMIN_AUDITOR")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(

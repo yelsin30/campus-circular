@@ -1,4 +1,5 @@
-import { Component, inject } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ImpactMetricsService } from '../../data/impact-metrics.service';
 
 @Component({
@@ -7,18 +8,31 @@ import { ImpactMetricsService } from '../../data/impact-metrics.service';
   templateUrl: './impact.html',
   styleUrl: './impact.scss',
 })
-export class ImpactPage {
-  readonly metrics = inject(ImpactMetricsService).metrics;
+export class ImpactPage implements OnInit {
+  private readonly impactService = inject(ImpactMetricsService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly metrics = this.impactService.metrics;
   readonly currentMonth = new Intl.DateTimeFormat('es-PE', { month: 'short', year: 'numeric' })
     .format(new Date())
     .replace('.', '');
+
+  ngOnInit(): void {
+    this.impactService
+      .loadImpactMetrics()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
 
   get monthlyMax(): number {
     return Math.max(1, ...this.metrics().monthlyActivity.map((point) => point.count));
   }
 
   get currentYearTransactions(): number {
-    return this.metrics().monthlyActivity.reduce((total, point) => total + point.count, 0);
+    return Math.max(
+      this.metrics().completedTransactions,
+      this.metrics().monthlyActivity.reduce((total, point) => total + point.count, 0),
+    );
   }
 
   get monthlyMid(): number {
@@ -41,8 +55,12 @@ export class ImpactPage {
     return `conic-gradient(${segments.join(', ')})`;
   }
 
+  formatRaee(value: number): string {
+    return `${Number(value ?? 0).toFixed(3)} kg`;
+  }
+
   money(value: number | null): string {
-    if (value === null) return 'Sin datos suficientes';
-    return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN', maximumFractionDigits: 0 }).format(value);
+    const num = Number(value ?? 0);
+    return `S/ ${num.toFixed(2)}`;
   }
 }

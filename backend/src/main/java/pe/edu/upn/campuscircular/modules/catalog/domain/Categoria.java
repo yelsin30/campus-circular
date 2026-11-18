@@ -22,7 +22,7 @@ public class Categoria {
     @Column(name = "carrera", length = 100)
     private String carrera;
 
-    protected Categoria() {}
+    public Categoria() {}
 
     public Long getIdCategoria() {
         return idCategoria;
@@ -32,7 +32,15 @@ public class Categoria {
         return nombre;
     }
 
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
+    }
+
     public String getCarrera() {
         return carrera;
+    }
+
+    public void setCarrera(String carrera) {
+        this.carrera = carrera;
     }
 }

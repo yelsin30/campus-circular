@@ -9,6 +9,9 @@
     <a routerLink="/publicar" routerLinkActive="active">Publicar</a>
     <a routerLink="/intercambios" routerLinkActive="active">Mis intercambios</a>
     <a routerLink="/impacto" routerLinkActive="active">Impacto</a>
+    @if (isAdmin) {
+      <a routerLink="/admin/reportes" routerLinkActive="active">Moderación</a>
+    }
   </nav>
 
   <div class="account-actions">
@@ -16,8 +19,8 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
     </button>
     <a class="profile-link" routerLink="/login">
-      <span class="profile-avatar" aria-hidden="true">MP</span>
-      <span>María Pérez</span>
+      <span class="profile-avatar" aria-hidden="true">{{ userInitials }}</span>
+      <span>{{ userDisplay }}</span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
     </a>
   </div>

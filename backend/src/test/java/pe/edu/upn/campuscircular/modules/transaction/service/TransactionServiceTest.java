@@ -24,10 +24,14 @@ import org.springframework.web.server.ResponseStatusException;
 import pe.edu.upn.campuscircular.modules.auth.domain.EstadoUsuario;
 import pe.edu.upn.campuscircular.modules.auth.domain.Usuario;
 import pe.edu.upn.campuscircular.modules.auth.repository.UsuarioRepository;
+import pe.edu.upn.campuscircular.modules.catalog.domain.Categoria;
 import pe.edu.upn.campuscircular.modules.catalog.domain.EstadoPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.ModalidadPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.Publicacion;
 import pe.edu.upn.campuscircular.modules.catalog.repository.PublicacionRepository;
+import pe.edu.upn.campuscircular.modules.metrics.domain.MetricaImpacto;
+import pe.edu.upn.campuscircular.modules.metrics.repository.MetricaImpactoRepository;
+import pe.edu.upn.campuscircular.modules.metrics.service.ImpactMetricsService;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Calificacion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
@@ -398,6 +402,69 @@ class TransactionServiceTest {
                 "solicitante@upn.pe", 301L, new CreateRatingRequest(4, "Duplicada")));
 
         assertEquals(409, duplicateEx.getStatusCode().value());
+    }
+
+    @Test
+    void recordsImpactMetricsWithRaeeAndSavingsWhenConfirmingDelivery() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        MetricaImpactoRepository metricaRepository = mock(MetricaImpactoRepository.class);
+        ImpactMetricsService impactMetricsService = new ImpactMetricsService(metricaRepository);
+        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, passwordEncoder, mailSender, impactMetricsService);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Categoria catRedes = new Categoria();
+        catRedes.setNombre("Redes");
+        Categoria catMicro = new Categoria();
+        catMicro.setNombre("Microcontroladores");
+
+        Publicacion requested = publication(101L, owner);
+        requested.setCategoria(catRedes);
+        requested.setEstado(EstadoPublicacion.EN_NEGOCIACION);
+
+        Publicacion offered = publication(202L, requester);
+        offered.setCategoria(catMicro);
+        offered.setEstado(EstadoPublicacion.EN_NEGOCIACION);
+
+        Transaccion tx = transaction(
+            301L, requested, requester, owner, EstadoTransaccion.EN_NEGOCIACION);
+        tx.setOtpHash(passwordEncoder.encode("K9M2P4"));
+        tx.setOtpExpiraEn(LocalDateTime.now().plusMinutes(10));
+
+        OfertaTrueque oferta = new OfertaTrueque();
+        oferta.setTransaccion(tx);
+        oferta.setPublicacionOfrecida(offered);
+        oferta.setEstado("PENDIENTE");
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(offerRepository.findFirstByTransaccionIdTransaccion(301L))
+            .thenReturn(Optional.of(oferta));
+        when(transactionRepository.save(any(Transaccion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(metricaRepository.findByTransaccionIdTransaccion(301L))
+            .thenReturn(Optional.empty());
+        when(metricaRepository.save(any(MetricaImpacto.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.confirmDelivery(
+            "solicitante@upn.pe", 301L, new ConfirmDeliveryRequest("K9M2P4"));
+
+        var metricaCaptor = org.mockito.ArgumentCaptor.forClass(MetricaImpacto.class);
+        verify(metricaRepository).save(metricaCaptor.capture());
+        MetricaImpacto saved = metricaCaptor.getValue();
+        assertEquals(2, saved.getArticulosReinsertados());
+        assertEquals(new BigDecimal("0.850"), saved.getRaeeKg());
+        assertEquals(new BigDecimal("160.00"), saved.getAhorroPen());
     }
 
     private static Usuario user(long id, EstadoUsuario estado) {

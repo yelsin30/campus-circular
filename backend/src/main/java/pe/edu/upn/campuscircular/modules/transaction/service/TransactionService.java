@@ -27,6 +27,7 @@ import pe.edu.upn.campuscircular.modules.catalog.domain.EstadoPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.ModalidadPublicacion;
 import pe.edu.upn.campuscircular.modules.catalog.domain.Publicacion;
 import pe.edu.upn.campuscircular.modules.catalog.repository.PublicacionRepository;
+import pe.edu.upn.campuscircular.modules.metrics.service.ImpactMetricsService;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Calificacion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
@@ -61,6 +62,7 @@ public class TransactionService {
     private final CalificacionRepository calificacionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JavaMailSender mailSender;
+    private final ImpactMetricsService impactMetricsService;
 
     public TransactionService(
             TransaccionRepository transaccionRepository,
@@ -74,6 +76,26 @@ public class TransactionService {
             usuarioRepository,
             null,
             new BCryptPasswordEncoder(),
+            null,
+            null);
+    }
+
+    public TransactionService(
+            TransaccionRepository transaccionRepository,
+            OfertaTruequeRepository ofertaTruequeRepository,
+            PublicacionRepository publicacionRepository,
+            UsuarioRepository usuarioRepository,
+            CalificacionRepository calificacionRepository,
+            PasswordEncoder passwordEncoder,
+            JavaMailSender mailSender) {
+        this(
+            transaccionRepository,
+            ofertaTruequeRepository,
+            publicacionRepository,
+            usuarioRepository,
+            calificacionRepository,
+            passwordEncoder,
+            mailSender,
             null);
     }
 
@@ -85,7 +107,8 @@ public class TransactionService {
             UsuarioRepository usuarioRepository,
             CalificacionRepository calificacionRepository,
             PasswordEncoder passwordEncoder,
-            JavaMailSender mailSender) {
+            JavaMailSender mailSender,
+            ImpactMetricsService impactMetricsService) {
         this.transaccionRepository = transaccionRepository;
         this.ofertaTruequeRepository = ofertaTruequeRepository;
         this.publicacionRepository = publicacionRepository;
@@ -93,6 +116,7 @@ public class TransactionService {
         this.calificacionRepository = calificacionRepository;
         this.passwordEncoder = passwordEncoder;
         this.mailSender = mailSender;
+        this.impactMetricsService = impactMetricsService;
     }
 
     @Transactional(readOnly = true)
@@ -347,6 +371,9 @@ public class TransactionService {
         }
 
         transaccion = transaccionRepository.save(transaccion);
+        if (impactMetricsService != null) {
+            impactMetricsService.recordTransactionImpact(transaccion, solicitada, ofrecida);
+        }
         return toResponse(transaccion, usuario.getIdUsuario(), ofrecida);
     }
 

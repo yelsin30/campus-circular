@@ -44,7 +44,7 @@
           <h2 id="report-dialog-title">Reportar publicación</h2>
           <p class="dialog-intro">Cuéntanos por qué esta publicación debería revisarse.</p>
           <label class="dialog-label" for="report-reason">Motivo del reporte</label>
-          <select id="report-reason" class="dialog-control" [value]="reportReason" (change)="updateReportReason($event)"><option>Contenido inapropiado</option><option>Información falsa</option><option>Artículo no disponible</option><option>Otro</option></select>
+          <select id="report-reason" class="dialog-control" [value]="reportReason" (change)="updateReportReason($event)"><option value="Contenido inapropiado">Contenido inapropiado</option><option value="Precio fuera de tope solidario">Precio fuera de tope solidario</option><option value="Material no académico">Material no académico</option><option value="Información falsa">Información falsa</option><option value="Otro">Otro</option></select>
           <label class="dialog-label" for="report-details">Detalles (opcional)</label>
           <textarea id="report-details" class="dialog-control dialog-textarea" placeholder="Agrega información que ayude a entender el reporte" [value]="reportDetails" (input)="updateReportDetails($event)"></textarea>
           <div class="dialog-actions"><button type="button" class="cancel-button" (click)="closeModal()">Cancelar</button><button type="button" class="request-button" (click)="submitReport()">Enviar reporte</button></div>

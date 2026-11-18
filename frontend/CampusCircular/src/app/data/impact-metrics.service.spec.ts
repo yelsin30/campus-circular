@@ -8,9 +8,8 @@ import { MaterialCatalogService } from './material-catalog.service';
 
 describe('ImpactMetricsService', () => {
   let metrics: ImpactMetricsService;
-  let exchanges: ExchangeService;
   let httpMock: HttpTestingController;
-  const baseUrl = `${environment.apiUrl}/transactions`;
+  const impactUrl = `${environment.apiUrl}/metrics/impact`;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -23,7 +22,6 @@ describe('ImpactMetricsService', () => {
       ],
     });
     metrics = TestBed.inject(ImpactMetricsService);
-    exchanges = TestBed.inject(ExchangeService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 
@@ -31,23 +29,22 @@ describe('ImpactMetricsService', () => {
     httpMock.verify();
   });
 
-  it('starts empty without demo transactions and updates reactively when a transaction is completed', () => {
+  it('fetches real KPI metrics from GET /api/v1/metrics/impact', () => {
     expect(metrics.metrics().completedTransactions).toBe(0);
 
-    exchanges.loadMyTransactions().subscribe();
-    httpMock.expectOne(baseUrl).flush([
-      {
-        idTransaccion: 10,
-        idPublicacion: 1,
-        idPublicacionOfrecida: 2,
-        idSolicitante: 2,
-        idPropietario: 1,
-        tipo: 'TRUEQUE',
-        estado: 'COMPLETADA',
-        fechaCierre: '2026-11-17T11:55:00',
-      },
-    ]);
+    metrics.loadImpactMetrics().subscribe();
+    const req = httpMock.expectOne(impactUrl);
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      completedTransactions: 125,
+      articlesReinserted: 125,
+      avoidedRaeeKg: 86.45,
+      estimatedSavingsPen: 18420.0,
+    });
 
-    expect(metrics.metrics().completedTransactions).toBe(1);
+    expect(metrics.metrics().completedTransactions).toBe(125);
+    expect(metrics.metrics().articlesReinserted).toBe(125);
+    expect(metrics.metrics().avoidedRaeeKg).toBe(86.45);
+    expect(metrics.metrics().estimatedSavingsPen).toBe(18420);
   });
 });

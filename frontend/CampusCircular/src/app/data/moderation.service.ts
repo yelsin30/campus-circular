@@ -1,16 +1,62 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { MarketplaceMaterial, PublicationStatus } from './material-catalog';
+import { catchError, map, Observable, of, tap } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { MarketplaceMaterial, MaterialCategory, PublicationStatus } from './material-catalog';
 import { MaterialCatalogService } from './material-catalog.service';
 
 export type ReportStatus = 'Pendiente' | 'En revisión' | 'Resuelto' | 'Descartado';
 export type UserRole = 'Estudiante' | 'Administrador';
 export type UserStatus = 'Activo' | 'Suspendido';
-export type ReportReason = 'Contenido inapropiado' | 'Información falsa' | 'Artículo no disponible' | 'Otro';
-export type ModerationLogAction = 'Publicación ocultada' | 'Publicación restaurada' | 'Publicación eliminada' | 'Reporte revisado' | 'Reporte resuelto' | 'Reporte descartado' | 'Usuario suspendido' | 'Usuario reactivado';
+export type ReportReason =
+  | 'Contenido inapropiado'
+  | 'Precio fuera de tope solidario'
+  | 'Material no académico'
+  | 'Información falsa'
+  | 'Artículo no disponible'
+  | 'Otro';
+export type ModerationLogAction =
+  | 'Publicación ocultada'
+  | 'Publicación suspendida'
+  | 'Publicación restaurada'
+  | 'Publicación eliminada'
+  | 'Reporte revisado'
+  | 'Reporte resuelto'
+  | 'Reporte descartado'
+  | 'Usuario suspendido'
+  | 'Usuario reactivado';
+
+export interface BackendReportDto {
+  idReporte: number;
+  idPublicacion: number;
+  tituloPublicacion: string | null;
+  categoriaPublicacion: string | null;
+  estadoPublicacion: string | null;
+  idPropietario: number | null;
+  correoPropietario: string | null;
+  idReportante: number | null;
+  correoReportante: string | null;
+  motivo: string;
+  estado: 'PENDIENTE' | 'ATENDIDO' | 'DESESTIMADO' | string;
+  fechaCreacion: string;
+  fechaResolucion: string | null;
+}
+
+export interface SuspendPublicationResponseDto {
+  idPublicacion: number;
+  estadoPublicacion: string;
+  reportesAtendidos: number;
+  fechaResolucion: string;
+}
 
 export interface PublicationReport {
   id: string;
+  reportId?: number;
   materialId: string;
+  publicationId?: number;
+  publicationTitle?: string;
+  publicationCategory?: MaterialCategory;
+  ownerEmail?: string;
   reporter: string;
   reason: string;
   details: string;
@@ -46,34 +92,136 @@ const ADMIN_NAME = 'Administrador UPN';
 
 @Injectable({ providedIn: 'root' })
 export class ModerationService {
+  private readonly http = inject(HttpClient, { optional: true });
   private readonly catalog = inject(MaterialCatalogService);
+  private readonly baseUrl = environment.apiUrl;
+
   private readonly reportsSignal = signal<PublicationReport[]>(this.createDemoReports());
   private readonly usersSignal = signal<DemoUser[]>(this.createDemoUsers());
   private readonly logsSignal = signal<ModerationLog[]>([]);
+
   readonly reports = this.reportsSignal.asReadonly();
   readonly users = this.usersSignal.asReadonly();
   readonly logs = this.logsSignal.asReadonly();
-  readonly activePublications = computed(() => this.catalog.materials().filter((material) => this.getPublicationStatus(material) === 'Activa').length);
-  readonly moderatedPublications = computed(() => new Set(this.logsSignal()
-    .filter((log) => ['Publicación ocultada', 'Publicación restaurada', 'Publicación eliminada'].includes(log.action))
-    .map((log) => log.targetId)).size);
+  readonly activePublications = computed(
+    () =>
+      this.catalog
+        .materials()
+        .filter((material) => this.getPublicationStatus(material) === 'Activa').length,
+  );
+  readonly moderatedPublications = computed(
+    () =>
+      new Set(
+        this.logsSignal()
+          .filter((log) =>
+            [
+              'Publicación ocultada',
+              'Publicación suspendida',
+              'Publicación restaurada',
+              'Publicación eliminada',
+            ].includes(log.action),
+          )
+          .map((log) => log.targetId),
+      ).size,
+  );
   readonly registeredUsers = computed(() => this.usersSignal().length);
-  readonly pendingReports = computed(() => this.reportsSignal().filter((report) => report.status === 'Pendiente' || report.status === 'En revisión').length);
+  readonly pendingReports = computed(
+    () =>
+      this.reportsSignal().filter(
+        (report) => report.status === 'Pendiente' || report.status === 'En revisión',
+      ).length,
+  );
   readonly administratorName = ADMIN_NAME;
   private sequence = 0;
+
+  submitReportToBackend(
+    publicationId: number | string,
+    motivo: string,
+  ): Observable<BackendReportDto> {
+    if (!this.http) {
+      throw new Error('HttpClient no disponible');
+    }
+    const numericId = Number(publicationId);
+    return this.http
+      .post<BackendReportDto>(`${this.baseUrl}/publications/${numericId}/reports`, {
+        motivo: motivo.trim(),
+      })
+      .pipe(
+        tap((dto) => {
+          const mapped = this.mapDtoToReport(dto);
+          this.reportsSignal.update((reports) => [
+            mapped,
+            ...reports.filter((item) => item.id !== mapped.id),
+          ]);
+        }),
+      );
+  }
+
+  loadAdminReports(includeResolved = false): Observable<PublicationReport[]> {
+    if (!this.http) {
+      return of(this.reportsSignal());
+    }
+    const params = new HttpParams().set('includeResolved', String(includeResolved));
+    return this.http
+      .get<BackendReportDto[]>(`${this.baseUrl}/admin/reports`, { params })
+      .pipe(
+        map((list) => (list ?? []).map((dto) => this.mapDtoToReport(dto))),
+        tap((items) => this.reportsSignal.set(items)),
+        catchError(() => of(this.reportsSignal())),
+      );
+  }
+
+  suspendPublicationByAdmin(
+    publicationId: number | string,
+  ): Observable<SuspendPublicationResponseDto> {
+    if (!this.http) {
+      throw new Error('HttpClient no disponible');
+    }
+    const numericId = Number(publicationId);
+    return this.http
+      .post<SuspendPublicationResponseDto>(
+        `${this.baseUrl}/admin/publications/${numericId}/suspend`,
+        {},
+      )
+      .pipe(
+        tap(() => {
+          const idStr = String(numericId);
+          this.catalog.setPublicationStatus(idStr, 'Oculta');
+          this.reportsSignal.update((reports) =>
+            reports.map((report) =>
+              report.materialId === idStr || report.publicationId === numericId
+                ? { ...report, status: 'Resuelto' }
+                : report,
+            ),
+          );
+          this.log(
+            'Publicación suspendida',
+            idStr,
+            `Publicación #${numericId}`,
+            `Publicación #${numericId} suspendida y reportes marcados como ATENDIDO.`,
+          );
+        }),
+      );
+  }
 
   getPublicationStatus(material: MarketplaceMaterial): PublicationStatus {
     return material.publicationStatus ?? 'Activa';
   }
 
-  createReport(materialId: string, reporter: string, reason: string, details = ''): CreateReportResult | null {
+  createReport(
+    materialId: string,
+    reporter: string,
+    reason: string,
+    details = '',
+  ): CreateReportResult | null {
     const material = this.catalog.findPublicById(materialId);
     if (!material) return null;
 
-    const duplicate = this.reportsSignal().find((report) =>
-      report.materialId === materialId
-      && report.reporter === reporter
-      && report.reason === reason,
+    const duplicate = this.reportsSignal().find(
+      (report) =>
+        report.materialId === materialId &&
+        report.reporter === reporter &&
+        report.reason === reason,
     );
     if (duplicate) return { created: false, report: duplicate };
 
@@ -93,45 +241,82 @@ export class ModerationService {
   reviewReport(reportId: string): boolean {
     const report = this.findReport(reportId);
     if (!report || report.status !== 'Pendiente') return false;
-    this.reportsSignal.update((reports) => reports.map((item) => item.id === reportId ? { ...item, status: 'En revisión' } : item));
-    this.log('Reporte revisado', reportId, this.materialLabel(report.materialId), `Se inició la revisión del reporte ${report.id}.`);
+    this.reportsSignal.update((reports) =>
+      reports.map((item) =>
+        item.id === reportId ? { ...item, status: 'En revisión' } : item,
+      ),
+    );
+    this.log(
+      'Reporte revisado',
+      reportId,
+      this.materialLabel(report.materialId),
+      `Se inició la revisión del reporte ${report.id}.`,
+    );
     return true;
   }
 
-  resolveReport(reportId: string, description = 'Reporte atendido por administración.'): boolean {
+  resolveReport(
+    reportId: string,
+    description = 'Reporte atendido por administración.',
+  ): boolean {
     const report = this.findReport(reportId);
-    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
-    this.reportsSignal.update((reports) => reports.map((item) => item.id === reportId ? { ...item, status: 'Resuelto' } : item));
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión'))
+      return false;
+    this.reportsSignal.update((reports) =>
+      reports.map((item) =>
+        item.id === reportId ? { ...item, status: 'Resuelto' } : item,
+      ),
+    );
     this.log('Reporte resuelto', reportId, this.materialLabel(report.materialId), description);
     return true;
   }
 
   discardReport(reportId: string): boolean {
     const report = this.findReport(reportId);
-    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
-    this.reportsSignal.update((reports) => reports.map((item) => item.id === reportId ? { ...item, status: 'Descartado' } : item));
-    this.log('Reporte descartado', reportId, this.materialLabel(report.materialId), `El reporte ${report.id} fue descartado.`);
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión'))
+      return false;
+    this.reportsSignal.update((reports) =>
+      reports.map((item) =>
+        item.id === reportId ? { ...item, status: 'Descartado' } : item,
+      ),
+    );
+    this.log(
+      'Reporte descartado',
+      reportId,
+      this.materialLabel(report.materialId),
+      `El reporte ${report.id} fue descartado.`,
+    );
     return true;
   }
 
   hideReportedPublication(reportId: string): boolean {
     const report = this.findReport(reportId);
-    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión'))
+      return false;
 
     const material = this.catalog.findById(report.materialId);
     if (!material || this.getPublicationStatus(material) === 'Eliminada') return false;
-    if (this.getPublicationStatus(material) !== 'Oculta' && !this.moderatePublication(material.id, 'Oculta')) return false;
+    if (
+      this.getPublicationStatus(material) !== 'Oculta' &&
+      !this.moderatePublication(material.id, 'Oculta')
+    )
+      return false;
 
     return this.resolveReport(reportId, 'Publicación ocultada al resolver el reporte.');
   }
 
   deleteReportedPublication(reportId: string): boolean {
     const report = this.findReport(reportId);
-    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión')) return false;
+    if (!report || (report.status !== 'Pendiente' && report.status !== 'En revisión'))
+      return false;
 
     const material = this.catalog.findById(report.materialId);
     if (!material) return false;
-    if (this.getPublicationStatus(material) !== 'Eliminada' && !this.moderatePublication(material.id, 'Eliminada')) return false;
+    if (
+      this.getPublicationStatus(material) !== 'Eliminada' &&
+      !this.moderatePublication(material.id, 'Eliminada')
+    )
+      return false;
 
     return this.resolveReport(reportId, 'Publicación eliminada al resolver el reporte.');
   }
@@ -140,9 +325,12 @@ export class ModerationService {
     const material = this.catalog.findById(materialId);
     if (!material || this.getPublicationStatus(material) === status) return false;
     if (!this.catalog.setPublicationStatus(materialId, status)) return false;
-    const action: ModerationLogAction = status === 'Activa'
-      ? 'Publicación restaurada'
-      : status === 'Oculta' ? 'Publicación ocultada' : 'Publicación eliminada';
+    const action: ModerationLogAction =
+      status === 'Activa'
+        ? 'Publicación restaurada'
+        : status === 'Oculta'
+          ? 'Publicación ocultada'
+          : 'Publicación eliminada';
     this.log(action, materialId, material.title, `${material.title}: estado cambiado a ${status}.`);
     return true;
   }
@@ -150,16 +338,30 @@ export class ModerationService {
   suspendUser(userId: string): boolean {
     const user = this.usersSignal().find((item) => item.id === userId);
     if (!user || user.role === 'Administrador' || user.status === 'Suspendido') return false;
-    this.usersSignal.update((users) => users.map((item) => item.id === userId ? { ...item, status: 'Suspendido' } : item));
-    this.log('Usuario suspendido', userId, user.name, `${user.name} fue suspendido en el modo demostración.`);
+    this.usersSignal.update((users) =>
+      users.map((item) => (item.id === userId ? { ...item, status: 'Suspendido' } : item)),
+    );
+    this.log(
+      'Usuario suspendido',
+      userId,
+      user.name,
+      `${user.name} fue suspendido en el modo demostración.`,
+    );
     return true;
   }
 
   reactivateUser(userId: string): boolean {
     const user = this.usersSignal().find((item) => item.id === userId);
     if (!user || user.status !== 'Suspendido') return false;
-    this.usersSignal.update((users) => users.map((item) => item.id === userId ? { ...item, status: 'Activo' } : item));
-    this.log('Usuario reactivado', userId, user.name, `${user.name} fue reactivado en el modo demostración.`);
+    this.usersSignal.update((users) =>
+      users.map((item) => (item.id === userId ? { ...item, status: 'Activo' } : item)),
+    );
+    this.log(
+      'Usuario reactivado',
+      userId,
+      user.name,
+      `${user.name} fue reactivado en el modo demostración.`,
+    );
     return true;
   }
 
@@ -179,15 +381,67 @@ export class ModerationService {
     return this.usersSignal().find((user) => user.id === id);
   }
 
-  materialForReport(report: PublicationReport): MarketplaceMaterial | undefined {
-    return this.catalog.findById(report.materialId);
+  materialForReport(report: PublicationReport): MarketplaceMaterial {
+    const found = this.catalog.findById(report.materialId);
+    if (found) return found;
+
+    return {
+      id: report.materialId,
+      title: report.publicationTitle ?? `Publicación #${report.materialId}`,
+      category: report.publicationCategory ?? 'Libros',
+      career: 'Ingeniería de Sistemas',
+      condition: 'En buen estado',
+      mode: 'Trueque',
+      owner: report.ownerEmail ?? 'Usuario UPN',
+      initials: 'UP',
+      art: 'calculus',
+      background: '#f0f2f4',
+      publishedAt: report.reportedAt,
+      publishedLabel: 'reciente',
+      campus: 'Campus UPN',
+      publisher: report.ownerEmail ?? 'Usuario UPN',
+      description: '',
+      rating: 5,
+      ratingCount: 1,
+      offeredExamples: [],
+      publicationStatus: report.status === 'Resuelto' ? 'Oculta' : 'Activa',
+    };
+  }
+
+  private mapDtoToReport(dto: BackendReportDto): PublicationReport {
+    const createdTimestamp = dto.fechaCreacion ? Date.parse(dto.fechaCreacion) : Date.now();
+    const status: ReportStatus =
+      dto.estado === 'ATENDIDO'
+        ? 'Resuelto'
+        : dto.estado === 'DESESTIMADO'
+          ? 'Descartado'
+          : 'Pendiente';
+
+    return {
+      id: `R-${dto.idReporte}`,
+      reportId: dto.idReporte,
+      materialId: String(dto.idPublicacion),
+      publicationId: dto.idPublicacion,
+      ...(dto.tituloPublicacion ? { publicationTitle: dto.tituloPublicacion } : {}),
+      ...(dto.correoPropietario ? { ownerEmail: dto.correoPropietario } : {}),
+      reporter: dto.correoReportante ?? `Usuario #${dto.idReportante ?? ''}`,
+      reason: dto.motivo,
+      details: '',
+      reportedAt: Number.isNaN(createdTimestamp) ? Date.now() : createdTimestamp,
+      status,
+    };
   }
 
   private materialLabel(materialId: string): string {
     return this.catalog.findById(materialId)?.title ?? materialId;
   }
 
-  private log(action: ModerationLogAction, targetId: string, targetLabel: string, description: string): void {
+  private log(
+    action: ModerationLogAction,
+    targetId: string,
+    targetLabel: string,
+    description: string,
+  ): void {
     const entry: ModerationLog = {
       id: this.createId('log'),
       admin: ADMIN_NAME,
@@ -227,9 +481,23 @@ export class ModerationService {
       ['user-luis', 'Luis García', 'luis.garcia@upn.pe', 52],
       ['user-daniel', 'Daniel Peña', 'daniel.pena@upn.pe', 45],
       ['user-maria', 'María Pérez', 'maria.perez@upn.pe', 30],
-    ].map(([id, name, email, daysAgo]) => ({ id: String(id), name: String(name), email: String(email), role: 'Estudiante' as const, status: 'Activo' as const, registeredAt: day(Number(daysAgo)) }));
+    ].map(([id, name, email, daysAgo]) => ({
+      id: String(id),
+      name: String(name),
+      email: String(email),
+      role: 'Estudiante' as const,
+      status: 'Activo' as const,
+      registeredAt: day(Number(daysAgo)),
+    }));
     return [
-      { id: 'admin-upn', name: ADMIN_NAME, email: 'admin@upn.pe', role: 'Administrador', status: 'Activo', registeredAt: day(365) },
+      {
+        id: 'admin-upn',
+        name: ADMIN_NAME,
+        email: 'admin@upn.pe',
+        role: 'Administrador',
+        status: 'Activo',
+        registeredAt: day(365),
+      },
       ...students,
     ];
   }

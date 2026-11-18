@@ -222,20 +222,32 @@ export class MaterialDetailPage implements OnInit {
 
   submitReport(): void {
     if (!this.material) return;
-    const report = this.moderation.createReport(
-      this.material.id,
-      'María P.',
-      this.reportReason,
-      this.reportDetails,
-    );
-    if (!report) {
-      this.modalConfirmation = 'Esta publicación ya no está disponible para reportar.';
-      return;
-    }
-    this.reportCreated = report.created;
-    this.modalConfirmation = report.created
-      ? `El reporte ${report.report.id} se agregó al panel de administración.`
-      : `Ya existe el reporte pendiente ${report.report.id} para este motivo y artículo.`;
+    const parsedId = Number(this.material.id);
+    const publicationId = Number.isFinite(parsedId) && parsedId > 0 ? parsedId : 1;
+    const combinedMotivo = this.reportDetails.trim()
+      ? `${this.reportReason}: ${this.reportDetails.trim()}`
+      : this.reportReason;
+
+    this.moderation.submitReportToBackend(publicationId, combinedMotivo).subscribe({
+      next: (res) => {
+        this.reportCreated = true;
+        this.modalConfirmation = `Reporte #${res.idReporte} registrado en estado ${res.estado}. El equipo de administración lo revisará.`;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reportCreated = false;
+        const backendMessage = err.error?.message as string | undefined;
+        if (err.status === 409) {
+          this.modalConfirmation =
+            backendMessage || 'Ya existe un reporte pendiente tuyo para esta publicación.';
+        } else if (err.status === 401 || err.status === 403) {
+          this.modalConfirmation =
+            backendMessage || 'Debes iniciar sesión con tu cuenta institucional para reportar.';
+        } else {
+          this.modalConfirmation =
+            backendMessage || 'No se pudo registrar el reporte en el servidor.';
+        }
+      },
+    });
   }
 
   async shareMaterial(): Promise<void> {

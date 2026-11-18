@@ -6,7 +6,7 @@
 .subtitle { color:#7b8491; font-size:.84rem; line-height:1.5; margin:.5rem 0 0; }
 .community-badge { align-items:center; background:#e6f7ea; border-radius:1rem; color:#2a824d; display:inline-flex; flex:0 0 auto; font-size:.64rem; font-weight:750; gap:.35rem; margin-top:.15rem; padding:.4rem .6rem; }
 .community-badge span { background:#38a866; border-radius:50%; height:7px; width:7px; }
-.metric-grid { display:grid; gap:1rem; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.metric-grid { display:grid; gap:1rem; grid-template-columns:repeat(4,minmax(0,1fr)); }
 .metric-card,.chart-card { background:#fff; border:1px solid #e8ebef; border-radius:1rem; box-shadow:0 8px 26px rgba(30,41,59,.06); min-width:0; }
 .metric-card { align-items:center; display:flex; gap:.9rem; min-height:116px; padding:1rem 1.1rem; }
 .metric-icon { align-items:center; border-radius:.9rem; display:flex; flex:0 0 56px; height:56px; justify-content:center; }
