@@ -66,10 +66,13 @@ public class AuthService {
         }
 
         Usuario usuario = new Usuario();
+        usuario.setNombres(request.nombres() != null ? request.nombres().trim() : null);
+        usuario.setApellidos(request.apellidos() != null ? request.apellidos().trim() : null);
         usuario.setCorreoInstitucional(email);
         usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setRol(RolUsuario.USUARIO);
         usuario.setEstado(EstadoUsuario.INACTIVO);
+        usuario.setFechaCreacion(LocalDateTime.now());
         usuario = usuarioRepository.save(usuario);
 
         issueAndSendVerificationToken(usuario);

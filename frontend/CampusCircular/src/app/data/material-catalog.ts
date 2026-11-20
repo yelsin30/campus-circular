@@ -28,7 +28,7 @@ export interface MarketplaceMaterial {
   publicationStatus?: PublicationStatus;
   ownerId?: number;
   backendModality?: 'TRUEQUE' | 'DONACION' | 'VENTA_SOLIDARIA';
-  backendStatus?: 'DISPONIBLE' | 'EN_NEGOCIACION' | 'TRANSFERIDO' | 'SUSPENDIDO';
+  backendStatus?: 'DISPONIBLE' | 'EN_NEGOCIACION' | 'TRANSFERIDO' | 'SUSPENDIDO' | 'RETIRADA';
 }
 
 export const MATERIAL_CATALOG: MarketplaceMaterial[] = [

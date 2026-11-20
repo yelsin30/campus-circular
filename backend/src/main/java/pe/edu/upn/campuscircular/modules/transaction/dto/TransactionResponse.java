@@ -26,7 +26,8 @@ public record TransactionResponse(
     String correoPropietario,
     LocalDateTime otpExpiraEn,
     LocalDateTime fechaCierre,
-    Boolean yaCalificada
+    Boolean yaCalificada,
+    String motivoRechazo
 ) {
     public static TransactionResponse from(Transaccion transaccion, Long idPublicacionOfrecida) {
         return from(transaccion, null, idPublicacionOfrecida, false);
@@ -67,6 +68,7 @@ public record TransactionResponse(
                 : null,
             transaccion.getOtpExpiraEn(),
             transaccion.getFechaCierre(),
-            yaCalificada);
+            yaCalificada,
+            transaccion.getMotivoRechazo());
     }
 }

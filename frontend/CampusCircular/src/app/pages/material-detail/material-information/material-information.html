@@ -25,7 +25,17 @@
     <h2>Publicado por</h2>
     <div class="owner-card"><span class="owner-avatar">{{ material.initials }}</span><div class="owner-data"><strong>{{ material.owner }}</strong><span class="rating"><span aria-label="Estrellas">★★★★★</span> {{ material.rating.toFixed(1) }} ({{ material.ratingCount }} calificaciones)</span></div><svg class="verified-icon" viewBox="0 0 24 24" aria-label="Cuenta institucional verificada UPN"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z" /><path d="m9 12 2 2 4-4" /></svg></div>
   </section>
-  <button type="button" class="request-button" (click)="requestOpened.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3m5 11H6l3 3" /><path d="M18 8v-3M6 16v3" /></svg>Solicitar material</button>
+  @if (existingTransactionId) {
+    <div class="active-request-box" role="status">
+      <p>Ya tienes una solicitud activa ({{ existingTransactionStatus || 'Pendiente' }}) para este material.</p>
+      <a class="request-button chat-shortcut-button" routerLink="/mis-intercambios" [queryParams]="{ tx: existingTransactionId }">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H7l-3 3V5Z" /><path d="M8 9h8M8 12h5" /></svg>
+        Ir al chat de mi solicitud
+      </a>
+    </div>
+  } @else {
+    <button type="button" class="request-button" (click)="requestOpened.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3m5 11H6l3 3" /><path d="M18 8v-3M6 16v3" /></svg>Solicitar material</button>
+  }
   <div class="secondary-actions"><button type="button" class="report-button" (click)="reportOpened.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5m0 3h.01" /></svg>Reportar publicación</button><button type="button" class="share-button" (click)="shareRequested.emit()"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.7 10.7 6.6-4.4m-6.6 9.4 6.6 2.6" /></svg>Compartir</button></div>
   @if (shareMessage) { <p class="share-feedback" role="status">{{ shareMessage }}</p> }
 </section>

@@ -18,4 +18,10 @@ public interface ReporteRepository extends JpaRepository<Reporte, Long> {
 
     List<Reporte> findByPublicacionIdPublicacionAndEstado(
         Long idPublicacion, EstadoReporte estado);
+
+    long countByEstado(EstadoReporte estado);
+
+    long countByEstadoIn(List<EstadoReporte> estados);
+
+    List<Reporte> findTop10ByOrderByFechaCreacionDesc();
 }

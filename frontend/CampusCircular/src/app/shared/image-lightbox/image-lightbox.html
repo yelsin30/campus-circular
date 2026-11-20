@@ -1,0 +1,25 @@
+@if (currentImage) {
+  <div class="lightbox-backdrop" role="dialog" aria-modal="true" [attr.aria-label]="title || 'Imagen ampliada'" (click)="close()">
+    <button type="button" class="lightbox-close" aria-label="Cerrar imagen ampliada" (click)="close($event)">×</button>
+
+    @if (hasMultiple) {
+      <button type="button" class="lightbox-nav lightbox-prev" aria-label="Imagen anterior" (click)="prev($event)">‹</button>
+    }
+
+    <figure class="lightbox-stage" (click)="$event.stopPropagation()">
+      <img [src]="currentImage" [alt]="title || 'Fotografía ampliada del material'" />
+      @if (title || hasMultiple) {
+        <figcaption class="lightbox-caption">
+          <span>{{ title }}</span>
+          @if (hasMultiple) {
+            <span class="lightbox-counter">{{ activeIndex + 1 }} / {{ images.length }}</span>
+          }
+        </figcaption>
+      }
+    </figure>
+
+    @if (hasMultiple) {
+      <button type="button" class="lightbox-nav lightbox-next" aria-label="Imagen siguiente" (click)="next($event)">›</button>
+    }
+  </div>
+}

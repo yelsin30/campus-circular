@@ -19,6 +19,7 @@ import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionMessag
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.DeliveryCodeResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.RatingResponse;
+import pe.edu.upn.campuscircular.modules.transaction.dto.RejectTransactionRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionMessageResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionResponse;
 import pe.edu.upn.campuscircular.modules.transaction.service.TransactionService;
@@ -57,8 +58,10 @@ public class TransactionController {
     @PostMapping("/{id}/reject")
     public ResponseEntity<TransactionResponse> reject(
             @PathVariable Long id,
+            @Valid @RequestBody(required = false) RejectTransactionRequest request,
             Authentication authentication) {
-        return ResponseEntity.ok(transactionService.reject(authentication.getName(), id));
+        String reason = request != null ? request.reason() : null;
+        return ResponseEntity.ok(transactionService.reject(authentication.getName(), id, reason));
     }
 
     @PostMapping("/{id}/delivery-code")

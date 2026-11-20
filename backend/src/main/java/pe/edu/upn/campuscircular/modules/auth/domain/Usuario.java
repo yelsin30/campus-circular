@@ -1,6 +1,7 @@
 package pe.edu.upn.campuscircular.modules.auth.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -40,8 +41,17 @@ public class Usuario {
     @Column(name = "estado", nullable = false, length = 20)
     private EstadoUsuario estado;
 
+    @Column(name = "nombres", length = 100)
+    private String nombres;
+
+    @Column(name = "apellidos", length = 100)
+    private String apellidos;
+
     @Column(name = "reputacion_promedio", precision = 3, scale = 2)
     private BigDecimal reputacionPromedio;
+
+    @Column(name = "fecha_creacion", nullable = false)
+    private LocalDateTime fechaCreacion;
 
     @PrePersist
     void setDefaults() {
@@ -50,6 +60,9 @@ public class Usuario {
         }
         if (estado == null) {
             estado = EstadoUsuario.INACTIVO;
+        }
+        if (fechaCreacion == null) {
+            fechaCreacion = LocalDateTime.now();
         }
     }
 
@@ -95,5 +108,29 @@ public class Usuario {
 
     public void setReputacionPromedio(BigDecimal reputacionPromedio) {
         this.reputacionPromedio = reputacionPromedio;
+    }
+
+    public String getNombres() {
+        return nombres;
+    }
+
+    public void setNombres(String nombres) {
+        this.nombres = nombres;
+    }
+
+    public String getApellidos() {
+        return apellidos;
+    }
+
+    public void setApellidos(String apellidos) {
+        this.apellidos = apellidos;
+    }
+
+    public LocalDateTime getFechaCreacion() {
+        return fechaCreacion;
+    }
+
+    public void setFechaCreacion(LocalDateTime fechaCreacion) {
+        this.fechaCreacion = fechaCreacion;
     }
 }

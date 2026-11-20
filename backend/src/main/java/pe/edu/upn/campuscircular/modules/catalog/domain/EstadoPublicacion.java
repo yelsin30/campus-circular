@@ -4,5 +4,6 @@ public enum EstadoPublicacion {
     DISPONIBLE,
     EN_NEGOCIACION,
     TRANSFERIDO,
-    SUSPENDIDO
+    SUSPENDIDO,
+    RETIRADA
 }

@@ -15,11 +15,18 @@ export class MaterialGallery {
   @Input() activeView = 0;
   @Input() images: string[] = [];
   @Output() viewSelected = new EventEmitter<number>();
+  @Output() imageClicked = new EventEmitter<number>();
 
   get views(): number[] {
     if (this.images && this.images.length > 0) {
       return this.images.map((_, index) => index);
     }
     return [0, 1, 2];
+  }
+
+  openLightbox(): void {
+    if (this.images.length > 0) {
+      this.imageClicked.emit(this.activeView);
+    }
   }
 }

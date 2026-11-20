@@ -1,15 +1,22 @@
+import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
+  DestroyRef,
+  ElementRef,
   EventEmitter,
   inject,
   Input,
   OnChanges,
+  OnInit,
   Output,
+  PLATFORM_ID,
   signal,
   SimpleChanges,
+  ViewChild,
 } from '@angular/core';
-import { finalize } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EMPTY, exhaustMap, finalize, interval } from 'rxjs';
 import {
   ExchangeRequest,
   ExchangeService,
@@ -23,8 +30,12 @@ import { MarketplaceMaterial } from '../../../data/material-catalog';
   templateUrl: './exchange-side-panel.html',
   styleUrl: './exchange-side-panel.scss',
 })
-export class ExchangeSidePanel implements OnChanges {
+export class ExchangeSidePanel implements OnInit, OnChanges {
   private readonly exchanges = inject(ExchangeService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly platformId = inject(PLATFORM_ID);
+
+  @ViewChild('chatMessagesContainer') chatMessagesContainer?: ElementRef<HTMLDivElement>;
 
   @Input() request: ExchangeRequest | undefined;
   @Input() material: MarketplaceMaterial | undefined;
@@ -52,6 +63,38 @@ export class ExchangeSidePanel implements OnChanges {
   readonly chatDraft = signal('');
   readonly sendingMessage = signal(false);
   readonly chatError = signal('');
+
+  ngOnInit(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    interval(2500)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        exhaustMap(() => {
+          const activeId = this.request?.id;
+          if (!activeId || this.sendingMessage()) {
+            return EMPTY;
+          }
+          return this.exchanges.getMessages(activeId);
+        }),
+      )
+      .subscribe({
+        next: (items) => {
+          const incoming = items ?? [];
+          const prev = this.messages();
+          const changed =
+            incoming.length !== prev.length ||
+            incoming[incoming.length - 1]?.idMensaje !== prev[prev.length - 1]?.idMensaje;
+          if (changed) {
+            this.messages.set(incoming);
+            this.scrollChatToBottom();
+          }
+        },
+        error: () => {
+          // Polling silencioso: no interrumpe el flujo del usuario si falla una petición puntual
+        },
+      });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['request']) {
@@ -123,6 +166,7 @@ export class ExchangeSidePanel implements OnChanges {
       .subscribe({
         next: (items) => {
           this.messages.set(items ?? []);
+          this.scrollChatToBottom();
         },
         error: (err: HttpErrorResponse) => {
           this.chatError.set(
@@ -154,6 +198,7 @@ export class ExchangeSidePanel implements OnChanges {
         next: (created) => {
           this.messages.update((current) => [...current, created]);
           this.chatDraft.set('');
+          this.scrollChatToBottom();
         },
         error: (err: HttpErrorResponse) => {
           this.chatError.set(
@@ -296,6 +341,16 @@ export class ExchangeSidePanel implements OnChanges {
           }
         },
       });
+  }
+
+  private scrollChatToBottom(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    globalThis.setTimeout(() => {
+      const container = this.chatMessagesContainer?.nativeElement;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }, 0);
   }
 
   private formatExpiration(isoString: string): string {

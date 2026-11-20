@@ -10,19 +10,27 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { exhaustMap, finalize, interval } from 'rxjs';
 import { ExchangeRequest, ExchangeService, ExchangeTab } from '../../data/exchange.service';
 import { MarketplaceMaterial } from '../../data/material-catalog';
 import { MaterialCatalogService } from '../../data/material-catalog.service';
 import { PublicationService } from '../../data/publication.service';
+import { ImageLightbox } from '../../shared/image-lightbox/image-lightbox';
 import { ExchangeRequestRow, ExchangeRowAction } from './exchange-request-row/exchange-request-row';
 import { ExchangeSidePanel } from './exchange-side-panel/exchange-side-panel';
+
+const REJECTION_REASONS: readonly string[] = [
+  'Ya acordé el intercambio con otro estudiante',
+  'El material ofrecido no coincide con lo que busco',
+  'No puedo coincidir en horarios/sede',
+  'Otro motivo',
+];
 
 @Component({
   selector: 'app-exchanges-page',
   standalone: true,
-  imports: [RouterLink, ExchangeSidePanel, ExchangeRequestRow],
+  imports: [RouterLink, ExchangeSidePanel, ExchangeRequestRow, ImageLightbox],
   templateUrl: './exchanges.html',
   styleUrl: './exchanges.scss',
 })
@@ -30,6 +38,7 @@ export class ExchangesPage {
   readonly exchangeService = inject(ExchangeService);
   private readonly publicationService = inject(PublicationService);
   private readonly catalog = inject(MaterialCatalogService);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly platformId = inject(PLATFORM_ID);
 
@@ -37,24 +46,29 @@ export class ExchangesPage {
     { id: 'received', label: 'Recibidos' },
     { id: 'sent', label: 'Enviados' },
     { id: 'completed', label: 'Completados' },
+    { id: 'rejected', label: 'Rechazados' },
   ];
 
+  readonly rejectionOptions = REJECTION_REASONS;
   readonly activeTab = signal<ExchangeTab>('received');
   readonly selectedRequestId = signal<string | null>(null);
   readonly agreementDetailsId = signal<string | null>(null);
   readonly actionMessage = signal('');
   readonly loading = signal(false);
 
+  readonly rejectModalRequest = signal<ExchangeRequest | null>(null);
+  readonly selectedRejectOption = signal<string>(REJECTION_REASONS[0]);
+  readonly customRejectReason = signal('');
+  readonly rejecting = signal(false);
+
+  readonly lightboxImages = signal<string[]>([]);
+  readonly lightboxTitle = signal('');
+
   readonly requests = computed(() => this.exchangeService.getRequests(this.activeTab()));
   readonly receivedCount = computed(() => this.exchangeService.getRequests('received').length);
   readonly sentCount = computed(() => this.exchangeService.getRequests('sent').length);
   readonly completedCount = computed(() => this.exchangeService.getRequests('completed').length);
-  readonly rejectedSentCount = computed(
-    () =>
-      this.exchangeService
-        .getRequests('sent')
-        .filter((request) => request.status === 'Rechazado').length,
-  );
+  readonly rejectedCount = computed(() => this.exchangeService.getRequests('rejected').length);
 
   readonly selectedRequest = computed(() => {
     const id = this.selectedRequestId();
@@ -74,12 +88,40 @@ export class ExchangesPage {
 
   constructor() {
     afterNextRender(() => {
-      this.loadTransactions();
+      if (!isPlatformBrowser(this.platformId)) return;
+
+      const requestedTx = this.route.snapshot.queryParamMap.get('tx');
+      this.loadTransactions(requestedTx);
+
+      interval(3000)
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          exhaustMap(() => this.exchangeService.loadMyTransactions()),
+        )
+        .subscribe(() => {
+          const currentId = this.selectedRequestId();
+          if (!currentId) {
+            this.ensureSelectedRequest();
+          }
+        });
     });
   }
 
   get currentUser(): string {
     return this.exchangeService.currentUser;
+  }
+
+  tabCount(tabId: ExchangeTab): number {
+    switch (tabId) {
+      case 'received':
+        return this.receivedCount();
+      case 'sent':
+        return this.sentCount();
+      case 'completed':
+        return this.completedCount();
+      case 'rejected':
+        return this.rejectedCount();
+    }
   }
 
   selectTab(tab: ExchangeTab): void {
@@ -144,17 +186,51 @@ export class ExchangesPage {
       });
   }
 
-  reject(request: ExchangeRequest): void {
+  openRejectModal(request: ExchangeRequest): void {
+    this.rejectModalRequest.set(request);
+    this.selectedRejectOption.set(REJECTION_REASONS[0]);
+    this.customRejectReason.set('');
+    this.actionMessage.set('');
+  }
+
+  closeRejectModal(): void {
+    if (this.rejecting()) return;
+    this.rejectModalRequest.set(null);
+  }
+
+  updateCustomRejectReason(event: Event): void {
+    this.customRejectReason.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  confirmReject(): void {
+    const target = this.rejectModalRequest();
+    if (!target || this.rejecting()) return;
+
+    const option = this.selectedRejectOption();
+    const extra = this.customRejectReason().trim();
+    const composedReason =
+      option === 'Otro motivo'
+        ? extra || 'Otro motivo'
+        : extra
+          ? `${option}. ${extra}`
+          : option;
+
+    this.rejecting.set(true);
     this.actionMessage.set('');
     this.exchangeService
-      .rejectTransaction(request.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .rejectTransaction(target.id, composedReason)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.rejecting.set(false)),
+      )
       .subscribe({
         next: () => {
+          this.rejectModalRequest.set(null);
           this.actionMessage.set(
-            'Solicitud rechazada. El solicitante verá el estado "Rechazado" y las publicaciones siguen disponibles.',
+            'Solicitud rechazada. Se movió a la pestaña Rechazados con el motivo registrado y la publicación sigue disponible.',
           );
-          this.selectedRequestId.set(request.id);
+          this.activeTab.set('rejected');
+          this.selectedRequestId.set(target.id);
         },
         error: (err: HttpErrorResponse) => {
           this.actionMessage.set(
@@ -162,6 +238,17 @@ export class ExchangesPage {
           );
         },
       });
+  }
+
+  openLightbox(material: MarketplaceMaterial): void {
+    if (!material.images?.length) return;
+    this.lightboxImages.set(material.images);
+    this.lightboxTitle.set(material.title);
+  }
+
+  closeLightbox(): void {
+    this.lightboxImages.set([]);
+    this.lightboxTitle.set('');
   }
 
   handleRowAction(action: { type: ExchangeRowAction; request: ExchangeRequest }): void {
@@ -173,10 +260,13 @@ export class ExchangesPage {
         this.accept(action.request);
         break;
       case 'reject':
-        this.reject(action.request);
+        this.openRejectModal(action.request);
         break;
       case 'agreement':
         this.showAgreement(action.request);
+        break;
+      case 'zoom':
+        this.openLightbox(this.materialFor(action.request));
         break;
     }
   }
@@ -192,6 +282,10 @@ export class ExchangesPage {
     );
   }
 
+  isUserOwner(request: ExchangeRequest): boolean {
+    return this.exchangeService.isUserOwner(request);
+  }
+
   onDeliveryConfirmed(completed: boolean): void {
     if (!completed) return;
     this.actionMessage.set(
@@ -205,7 +299,7 @@ export class ExchangesPage {
     }
   }
 
-  private loadTransactions(): void {
+  private loadTransactions(preferredTxId?: string | null): void {
     if (!isPlatformBrowser(this.platformId)) return;
 
     this.loading.set(true);
@@ -221,8 +315,28 @@ export class ExchangesPage {
         finalize(() => this.loading.set(false)),
       )
       .subscribe(() => {
+        if (preferredTxId) {
+          const matched = this.exchangeService.findRequest(preferredTxId);
+          if (matched) {
+            this.switchTabForRequest(matched);
+            this.selectedRequestId.set(matched.id);
+            return;
+          }
+        }
         this.ensureSelectedRequest();
       });
+  }
+
+  private switchTabForRequest(request: ExchangeRequest): void {
+    if (request.status === 'Completado') {
+      this.activeTab.set('completed');
+    } else if (request.status === 'Rechazado') {
+      this.activeTab.set('rejected');
+    } else if (this.exchangeService.isUserOwner(request)) {
+      this.activeTab.set('received');
+    } else {
+      this.activeTab.set('sent');
+    }
   }
 
   private ensureSelectedRequest(): void {
@@ -230,7 +344,7 @@ export class ExchangesPage {
     const currentId = this.selectedRequestId();
     if (!list.some((request) => request.id === currentId)) {
       const preferred =
-        this.activeTab() === 'completed'
+        this.activeTab() === 'completed' || this.activeTab() === 'rejected'
           ? list[0]
           : list.find((request) => request.status === 'En negociación') ?? list[0];
       this.selectedRequestId.set(preferred?.id ?? null);

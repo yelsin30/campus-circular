@@ -30,9 +30,13 @@ section h2 { color: #303640; font-size: 0.86rem; font-weight: 800; margin: 0 0 0
 .rating { color: #808896; font-size: 0.68rem; }
 .rating>span { color: #e4a900; letter-spacing: 0.03em; }
 .verified-icon { fill: none; height: 20px; margin-left: auto; stroke: #596473; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; width: 20px; }
-.request-button { align-items: center; background: var(--cc-yellow); border: 0; border-radius: 0.65rem; color: #20252c; cursor: pointer; display: flex; font: inherit; font-size: 0.82rem; font-weight: 800; gap: 0.5rem; justify-content: center; min-height: 45px; padding: 0.65rem 1rem; width: 100%; }
+.request-button { align-items: center; background: var(--cc-yellow); border: 0; border-radius: 0.65rem; color: #20252c; cursor: pointer; display: flex; font: inherit; font-size: 0.82rem; font-weight: 800; gap: 0.5rem; justify-content: center; min-height: 45px; padding: 0.65rem 1rem; text-decoration: none; width: 100%; }
 .request-button:hover { background: #f4c600; }
 .request-button svg { fill: none; height: 17px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 17px; }
+.active-request-box { background: #f2f7ff; border: 1px solid #d5e4ff; border-radius: 0.75rem; display: flex; flex-direction: column; gap: 0.55rem; padding: 0.75rem; }
+.active-request-box p { color: #2b4c80; font-size: 0.74rem; font-weight: 700; margin: 0; }
+.chat-shortcut-button { background: #1e293b; color: #fff; }
+.chat-shortcut-button:hover { background: #0f172a; }
 .secondary-actions { align-items: center; display: flex; justify-content: space-between; margin-top: 0.75rem; }
 .report-button,.share-button { align-items: center; background: none; border: 0; cursor: pointer; display: inline-flex; font: inherit; font-size: 0.7rem; font-weight: 750; gap: 0.3rem; padding: 0.25rem; }
 .report-button { color: #d64e54; }

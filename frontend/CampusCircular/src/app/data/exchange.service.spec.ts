@@ -93,4 +93,43 @@ describe('ExchangeService', () => {
     });
     expect(service.findRequest('10')?.alreadyRated).toBe(true);
   });
+
+  it('sends rejection reason and moves rejected requests into rejected tab', () => {
+    service.loadMyTransactions().subscribe();
+    const listReq = httpMock.expectOne(baseUrl);
+    listReq.flush([
+      {
+        idTransaccion: 20,
+        idPublicacion: 3,
+        idSolicitante: 5,
+        idPropietario: 1,
+        tipo: 'DONACION',
+        estado: 'PENDIENTE',
+        tituloPublicacion: 'Apuntes Java',
+      },
+    ]);
+
+    service.rejectTransaction(20, 'Ya acordé el intercambio con otro estudiante').subscribe();
+    const rejectReq = httpMock.expectOne(`${baseUrl}/20/reject`);
+    expect(rejectReq.request.method).toBe('POST');
+    expect(rejectReq.request.body).toEqual({
+      reason: 'Ya acordé el intercambio con otro estudiante',
+    });
+    rejectReq.flush({
+      idTransaccion: 20,
+      idPublicacion: 3,
+      idSolicitante: 5,
+      idPropietario: 1,
+      tipo: 'DONACION',
+      estado: 'RECHAZADA',
+      tituloPublicacion: 'Apuntes Java',
+      motivoRechazo: 'Ya acordé el intercambio con otro estudiante',
+    });
+
+    const rejected = service.getRequests('rejected');
+    expect(rejected.length).toBe(1);
+    expect(rejected[0].rejectionReason).toBe('Ya acordé el intercambio con otro estudiante');
+    expect(service.getRequests('received').length).toBe(0);
+    expect(service.getRequests('sent').length).toBe(0);
+  });
 });

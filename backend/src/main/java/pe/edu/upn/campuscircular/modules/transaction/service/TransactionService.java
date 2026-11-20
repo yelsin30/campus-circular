@@ -172,6 +172,15 @@ public class TransactionService {
                 HttpStatus.BAD_REQUEST, "No puedes solicitar un trueque sobre tu propia publicación");
         }
 
+        if (transaccionRepository.existsByPublicacionIdPublicacionAndSolicitanteIdUsuarioAndEstadoIn(
+                solicitada.getIdPublicacion(),
+                solicitante.getIdUsuario(),
+                List.of(EstadoTransaccion.PENDIENTE, EstadoTransaccion.EN_NEGOCIACION))) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Ya tienes una solicitud activa para este material. Puedes continuar la coordinación desde Mis intercambios");
+        }
+
         ModalidadPublicacion modalidad = solicitada.getModalidad();
         Publicacion ofrecida = null;
 
@@ -350,6 +359,11 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse reject(String email, Long idTransaccion) {
+        return reject(email, idTransaccion, null);
+    }
+
+    @Transactional
+    public TransactionResponse reject(String email, Long idTransaccion, String reason) {
         Usuario usuario = requireActiveUser(email);
         Transaccion transaccion = findTransaction(idTransaccion);
 
@@ -365,6 +379,12 @@ public class TransactionService {
         }
 
         transaccion.setEstado(EstadoTransaccion.RECHAZADA);
+        transaccion.setFechaCierre(LocalDateTime.now());
+        if (reason != null && !reason.isBlank()) {
+            String trimmedReason = reason.trim();
+            transaccion.setMotivoRechazo(
+                trimmedReason.length() > 300 ? trimmedReason.substring(0, 300) : trimmedReason);
+        }
         Publicacion solicitada = transaccion.getPublicacion();
         if (solicitada != null) {
             solicitada.setEstado(EstadoPublicacion.DISPONIBLE);

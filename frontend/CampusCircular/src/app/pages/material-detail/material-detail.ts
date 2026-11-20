@@ -19,6 +19,7 @@ import { CreateTransactionRequestDto, ExchangeService } from '../../data/exchang
 import { ModerationService } from '../../data/moderation.service';
 import { PublicationService } from '../../data/publication.service';
 import { MaterialArtwork } from '../../shared/material-artwork/material-artwork';
+import { ImageLightbox } from '../../shared/image-lightbox/image-lightbox';
 import { MaterialGallery } from './material-gallery/material-gallery';
 import { MaterialInformation } from './material-information/material-information';
 
@@ -27,7 +28,7 @@ type DetailModal = 'request' | 'report' | null;
 @Component({
   selector: 'app-material-detail-page',
   standalone: true,
-  imports: [RouterLink, MaterialGallery, MaterialArtwork, MaterialInformation],
+  imports: [RouterLink, MaterialGallery, MaterialArtwork, MaterialInformation, ImageLightbox],
   templateUrl: './material-detail.html',
   styleUrl: './material-detail.scss',
 })
@@ -54,9 +55,31 @@ export class MaterialDetailPage implements OnInit {
   readonly shareMessage = signal('');
   readonly modalConfirmation = signal('');
   readonly requestCreated = signal(false);
+  readonly duplicateRequestConflict = signal(false);
   readonly reportCreated = signal(false);
   readonly isSubmittingRequest = signal(false);
   readonly isSubmittingReport = signal(false);
+  readonly lightboxOpen = signal(false);
+  readonly lightboxIndex = signal(0);
+
+  readonly existingActiveTransaction = computed(() => {
+    const currentMaterialId = this.material()?.id;
+    if (!currentMaterialId) return undefined;
+    const currentUserId = this.auth.currentUser()?.id;
+    const currentEmail = this.auth.currentUser()?.email?.toLowerCase();
+
+    return this.exchanges.requests().find((req) => {
+      if (req.materialId !== currentMaterialId) return false;
+      if (req.status !== 'Pendiente' && req.status !== 'En negociación') return false;
+      if (currentUserId !== undefined && req.requesterId !== undefined) {
+        return req.requesterId === currentUserId;
+      }
+      if (currentEmail) {
+        return req.requester.toLowerCase() === currentEmail;
+      }
+      return false;
+    });
+  });
 
   readonly ownTradePublications = computed<MarketplaceMaterial[]>(() => {
     const currentUserId = this.auth.currentUser()?.id;
@@ -112,11 +135,28 @@ export class MaterialDetailPage implements OnInit {
               this.material.set(refreshed);
             }
           });
+
+        if (this.auth.hasValidSession()) {
+          this.exchanges
+            .loadMyTransactions()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe();
+        }
       });
   }
 
   selectGalleryView(view: number): void {
     this.activeGalleryView.set(view);
+  }
+
+  openLightbox(index: number): void {
+    if (!this.material()?.images?.length) return;
+    this.lightboxIndex.set(index);
+    this.lightboxOpen.set(true);
+  }
+
+  closeLightbox(): void {
+    this.lightboxOpen.set(false);
   }
 
   toggleSaved(): void {
@@ -129,6 +169,7 @@ export class MaterialDetailPage implements OnInit {
     this.otherOfferedMaterial.set('');
     this.modalConfirmation.set('');
     this.requestCreated.set(false);
+    this.duplicateRequestConflict.set(false);
     this.reportCreated.set(false);
     this.activeModal.set('request');
   }
@@ -216,9 +257,14 @@ export class MaterialDetailPage implements OnInit {
           this.requestCreated.set(false);
           const backendMessage = err.error?.message as string | undefined;
           if (err.status === 409) {
+            this.duplicateRequestConflict.set(true);
+            this.exchanges
+              .loadMyTransactions()
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe();
             this.modalConfirmation.set(
               backendMessage ||
-                'La publicación solicitada u ofrecida no está disponible en este momento (409 Conflict).',
+                'Ya tienes una solicitud activa para este material. Puedes continuar la coordinación desde Mis intercambios.',
             );
           } else if (err.status === 403) {
             this.modalConfirmation.set(

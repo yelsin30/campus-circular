@@ -3,6 +3,7 @@
 .request-row:hover,.request-row.row-selected { background:#fffdf5; }
 :host:last-child .request-row { border-bottom:0; }
 .request-art { align-items:center; border-radius:.65rem; display:flex; flex:0 0 96px; height:96px; justify-content:center; overflow:hidden; }
+.request-art.zoomable { cursor:zoom-in; }
 .request-art app-material-artwork { height:80%; max-width:80%; }
 .request-art img { height:100%; object-fit:cover; width:100%; }
 .request-content { flex:1; min-width:0; }

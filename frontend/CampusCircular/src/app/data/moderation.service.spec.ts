@@ -1,73 +1,131 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { MaterialCatalogService } from './material-catalog.service';
+import { environment } from '../../environments/environment';
 import { ModerationService } from './moderation.service';
 
 describe('ModerationService', () => {
   let moderation: ModerationService;
-  let catalog: MaterialCatalogService;
+  let httpMock: HttpTestingController;
+  const apiUrl = environment.apiUrl;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [MaterialCatalogService, ModerationService] });
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), ModerationService],
+    });
     moderation = TestBed.inject(ModerationService);
-    catalog = TestBed.inject(MaterialCatalogService);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  it('hides and restores a publication in the public catalog without removing its record', () => {
-    expect(catalog.findPublicById('calculo-diferencial')).toBeDefined();
-    expect(moderation.moderatePublication('calculo-diferencial', 'Oculta')).toBe(true);
-    expect(catalog.findPublicById('calculo-diferencial')).toBeUndefined();
-    expect(catalog.findById('calculo-diferencial')).toBeDefined();
-    expect(moderation.moderatePublication('calculo-diferencial', 'Oculta')).toBe(false);
-    expect(moderation.moderatePublication('calculo-diferencial', 'Activa')).toBe(true);
-    expect(catalog.findPublicById('calculo-diferencial')).toBeDefined();
+  afterEach(() => {
+    httpMock.verify();
   });
 
-  it('creates one report per material, reporter, and reason and records moderation actions', () => {
-    const first = moderation.createReport('tablet-apuntes', 'María Pérez', 'Información falsa', 'Demo');
-    const repeated = moderation.createReport('tablet-apuntes', 'María Pérez', 'Información falsa', 'Demo again');
-    expect(first?.created).toBe(true);
-    expect(repeated?.created).toBe(false);
-    if (!first) return;
+  it('loads real admin overview, publications, reports and users from backend', () => {
+    moderation.loadAdminOverview().subscribe();
+    const overviewReq = httpMock.expectOne(`${apiUrl}/admin/overview`);
+    expect(overviewReq.request.method).toBe('GET');
+    overviewReq.flush({
+      totalUsers: 5,
+      activeUsers: 4,
+      suspendedUsers: 1,
+      inactiveUsers: 0,
+      totalPublications: 10,
+      activePublications: 7,
+      inNegotiationPublications: 1,
+      suspendedPublications: 1,
+      retiredPublications: 0,
+      transferredPublications: 1,
+      pendingReports: 2,
+      resolvedReports: 3,
+      totalReports: 5,
+      completedTransactions: 1,
+      activeTransactions: 2,
+      recentActivity: [],
+    });
+    expect(moderation.overview().activeUsers).toBe(4);
+    expect(moderation.overview().pendingReports).toBe(2);
 
-    expect(moderation.reviewReport(first.report.id)).toBe(true);
-    expect(moderation.resolveReport(first.report.id)).toBe(true);
-    expect(moderation.logs().map((entry) => entry.action)).toEqual(['Reporte resuelto', 'Reporte revisado']);
-    const afterResolution = moderation.createReport('tablet-apuntes', 'María Pérez', 'Información falsa');
-    expect(afterResolution?.created).toBe(false);
-    expect(afterResolution?.report.id).toBe(first.report.id);
-    expect(moderation.reports().filter((report) => report.materialId === 'tablet-apuntes' && report.reporter === 'María Pérez').length).toBe(1);
+    moderation.loadAdminPublications().subscribe();
+    const pubsReq = httpMock.expectOne(`${apiUrl}/admin/publications`);
+    expect(pubsReq.request.method).toBe('GET');
+    pubsReq.flush([
+      {
+        id: 10,
+        categoriaId: 1,
+        categoria: 'Libros',
+        carrera: 'Ingeniería de Sistemas',
+        usuarioId: 2,
+        propietarioCorreo: 'ana@upn.pe',
+        titulo: 'Cálculo I',
+        descripcion: 'Buen estado',
+        condicion: 'BUENO',
+        modalidad: 'DONACION',
+        estado: 'SUSPENDIDO',
+        precioSolidario: null,
+        imagenUrl: 'data:image/jpeg;base64,abc',
+        imagenes: ['data:image/jpeg;base64,abc'],
+        fechaCreacion: '2026-11-20T10:00:00',
+      },
+    ]);
+    expect(moderation.adminPublications().length).toBe(1);
+    expect(moderation.adminPublications()[0].backendStatus).toBe('SUSPENDIDO');
+
+    moderation.activatePublicationByAdmin(10).subscribe();
+    const activateReq = httpMock.expectOne(`${apiUrl}/admin/publications/10/activate`);
+    expect(activateReq.request.method).toBe('POST');
+    activateReq.flush({
+      id: 10,
+      categoriaId: 1,
+      categoria: 'Libros',
+      carrera: 'Ingeniería de Sistemas',
+      usuarioId: 2,
+      propietarioCorreo: 'ana@upn.pe',
+      titulo: 'Cálculo I',
+      descripcion: 'Buen estado',
+      condicion: 'BUENO',
+      modalidad: 'DONACION',
+      estado: 'DISPONIBLE',
+      precioSolidario: null,
+      imagenUrl: 'data:image/jpeg;base64,abc',
+      imagenes: ['data:image/jpeg;base64,abc'],
+      fechaCreacion: '2026-11-20T10:00:00',
+    });
+    expect(moderation.findPublicationById('10')?.backendStatus).toBe('DISPONIBLE');
   });
 
-  it('rejects reports for hidden publications and accepts reports for active ones once', () => {
-    expect(moderation.createReport('calculadora-cientifica', 'Estudiante UPN', 'Información falsa')?.created).toBe(true);
-    expect(moderation.createReport('calculadora-cientifica', 'Estudiante UPN', 'Información falsa')?.created).toBe(false);
-    moderation.moderatePublication('calculadora-cientifica', 'Oculta');
-    expect(moderation.createReport('calculadora-cientifica', 'Otra persona', 'Información falsa')).toBeNull();
-  });
+  it('loads real users and toggles user status via backend', () => {
+    moderation.loadAdminUsers().subscribe();
+    const usersReq = httpMock.expectOne(`${apiUrl}/admin/users`);
+    expect(usersReq.request.method).toBe('GET');
+    usersReq.flush([
+      {
+        idUsuario: 2,
+        nombres: 'Ana',
+        apellidos: 'Torres',
+        correoInstitucional: 'ana@upn.pe',
+        rol: 'USUARIO',
+        estado: 'ACTIVO',
+        reputacionPromedio: 4.8,
+        fechaCreacion: '2026-11-10T09:00:00',
+      },
+    ]);
+    expect(moderation.users().length).toBe(1);
+    expect(moderation.users()[0].fullName).toBe('Ana Torres');
 
-  it('hides a reported publication and resolves the report in one moderation action', () => {
-    expect(moderation.hideReportedPublication('R-003')).toBe(true);
-    expect(catalog.findPublicById('libro-algoritmos')).toBeUndefined();
-    expect(catalog.findById('libro-algoritmos')?.publicationStatus).toBe('Oculta');
-    expect(moderation.findReport('R-003')?.status).toBe('Resuelto');
-    expect(moderation.logs().map((entry) => entry.action)).toEqual(['Reporte resuelto', 'Publicación ocultada']);
-    expect(moderation.hideReportedPublication('R-003')).toBe(false);
-  });
-
-  it('deletes a reported publication and resolves the report in one moderation action', () => {
-    expect(moderation.deleteReportedPublication('R-003')).toBe(true);
-    expect(catalog.findPublicById('libro-algoritmos')).toBeUndefined();
-    expect(catalog.findById('libro-algoritmos')?.publicationStatus).toBe('Eliminada');
-    expect(moderation.findReport('R-003')?.status).toBe('Resuelto');
-    expect(moderation.logs().map((entry) => entry.action)).toEqual(['Reporte resuelto', 'Publicación eliminada']);
-    expect(moderation.deleteReportedPublication('R-003')).toBe(false);
-  });
-
-  it('suspends a student but never the demo administrator', () => {
-    expect(moderation.suspendUser('admin-upn')).toBe(false);
-    expect(moderation.suspendUser('user-maria')).toBe(true);
-    expect(moderation.isUserSuspended('María Pérez')).toBe(true);
-    expect(moderation.reactivateUser('user-maria')).toBe(true);
-    expect(moderation.isUserSuspended('María Pérez')).toBe(false);
+    moderation.toggleUserStatusByAdmin(2).subscribe();
+    const toggleReq = httpMock.expectOne(`${apiUrl}/admin/users/2/toggle-status`);
+    expect(toggleReq.request.method).toBe('POST');
+    toggleReq.flush({
+      idUsuario: 2,
+      nombres: 'Ana',
+      apellidos: 'Torres',
+      correoInstitucional: 'ana@upn.pe',
+      rol: 'USUARIO',
+      estado: 'SUSPENDIDO',
+      reputacionPromedio: 4.8,
+      fechaCreacion: '2026-11-10T09:00:00',
+    });
+    expect(moderation.userById(2)?.estado).toBe('SUSPENDIDO');
   });
 });

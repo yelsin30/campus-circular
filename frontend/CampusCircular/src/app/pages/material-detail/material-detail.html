@@ -7,11 +7,15 @@
     </nav>
 
     <main class="detail-grid">
-      <app-material-gallery [art]="item.art" [background]="item.background" [images]="item.images ?? []" [activeView]="activeGalleryView()" (viewSelected)="selectGalleryView($event)" />
+      <app-material-gallery [art]="item.art" [background]="item.background" [images]="item.images ?? []" [activeView]="activeGalleryView()" (viewSelected)="selectGalleryView($event)" (imageClicked)="openLightbox($event)" />
 
-      <app-material-information [material]="item" [isSaved]="isSaved()" [shareMessage]="shareMessage()" (saveToggled)="toggleSaved()" (requestOpened)="openRequest()" (reportOpened)="openReport()" (shareRequested)="shareMaterial()" />
+      <app-material-information [material]="item" [isSaved]="isSaved()" [shareMessage]="shareMessage()" [existingTransactionId]="existingActiveTransaction()?.id ?? null" [existingTransactionStatus]="existingActiveTransaction()?.status ?? null" (saveToggled)="toggleSaved()" (requestOpened)="openRequest()" (reportOpened)="openReport()" (shareRequested)="shareMaterial()" />
     </main>
   </div>
+
+  @if (lightboxOpen() && item.images?.length) {
+    <app-image-lightbox [images]="item.images!" [activeIndex]="lightboxIndex()" [title]="item.title" (indexChanged)="lightboxIndex.set($event)" (closed)="closeLightbox()" />
+  }
 
   @if (activeModal(); as modal) {
     <div class="modal-backdrop" (click)="closeModal()">
@@ -22,8 +26,10 @@
             <div class="confirmation-icon" aria-hidden="true">{{ (modal === 'request' && !requestCreated()) || (modal === 'report' && !reportCreated()) ? '!' : '✓' }}</div>
             <h2>{{ modal === 'request' ? (requestCreated() ? 'Solicitud enviada' : 'No se pudo crear la solicitud') : (reportCreated() ? 'Reporte recibido' : 'Reporte ya registrado') }}</h2>
             <p>{{ modalConfirmation() }}</p>
-            @if (requestCreated()) {
-              <a class="request-button" routerLink="/intercambios" (click)="closeModal()">Ir a Mis intercambios</a>
+            @if (requestCreated() || (modal === 'request' && duplicateRequestConflict())) {
+              <a class="request-button" routerLink="/mis-intercambios" [queryParams]="existingActiveTransaction() ? { tx: existingActiveTransaction()!.id } : null" (click)="closeModal()">
+                {{ duplicateRequestConflict() ? 'Ir al chat de mi solicitud' : 'Ir a Mis intercambios' }}
+              </a>
             } @else {
               <button type="button" class="request-button" (click)="closeModal()">Entendido</button>
             }

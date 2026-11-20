@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import pe.edu.upn.campuscircular.modules.auth.domain.EstadoUsuario;
+import pe.edu.upn.campuscircular.modules.auth.domain.RolUsuario;
 import pe.edu.upn.campuscircular.modules.auth.domain.Usuario;
 import pe.edu.upn.campuscircular.modules.auth.repository.UsuarioRepository;
 import pe.edu.upn.campuscircular.modules.catalog.domain.Categoria;
@@ -25,12 +26,16 @@ import pe.edu.upn.campuscircular.modules.catalog.repository.PublicacionRepositor
 import pe.edu.upn.campuscircular.modules.metrics.controller.MetricsController;
 import pe.edu.upn.campuscircular.modules.metrics.repository.MetricaImpactoRepository;
 import pe.edu.upn.campuscircular.modules.metrics.service.ImpactMetricsService;
+import pe.edu.upn.campuscircular.modules.moderation.controller.AdminController;
 import pe.edu.upn.campuscircular.modules.moderation.controller.ReportController;
 import pe.edu.upn.campuscircular.modules.moderation.domain.EstadoReporte;
 import pe.edu.upn.campuscircular.modules.moderation.domain.Reporte;
 import pe.edu.upn.campuscircular.modules.moderation.dto.CreateReportRequest;
 import pe.edu.upn.campuscircular.modules.moderation.repository.ReporteRepository;
+import pe.edu.upn.campuscircular.modules.moderation.service.AdminService;
 import pe.edu.upn.campuscircular.modules.moderation.service.ReportService;
+import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
+import pe.edu.upn.campuscircular.modules.transaction.repository.TransaccionRepository;
 
 class ModerationAndImpactMetricsTest {
 
@@ -129,6 +134,86 @@ class ModerationAndImpactMetricsTest {
         assertEquals(1, suspended.reportesAtendidos());
         assertEquals(EstadoReporte.ATENDIDO, pendingReport.getEstado());
         verify(publicacionRepository).save(publicacion);
+    }
+
+    @Test
+    void adminControllerProvidesRealOverviewActivatesRetiresPublicationsAndTogglesUsers() {
+        UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
+        PublicacionRepository publicacionRepository = mock(PublicacionRepository.class);
+        ReporteRepository reporteRepository = mock(ReporteRepository.class);
+        TransaccionRepository transaccionRepository = mock(TransaccionRepository.class);
+
+        AdminService adminService = new AdminService(
+            usuarioRepository, publicacionRepository, reporteRepository, transaccionRepository);
+        AdminController adminController = new AdminController(adminService);
+
+        when(usuarioRepository.countByEstado(EstadoUsuario.ACTIVO)).thenReturn(8L);
+        when(usuarioRepository.countByEstado(EstadoUsuario.SUSPENDIDO)).thenReturn(1L);
+        when(usuarioRepository.countByEstado(EstadoUsuario.INACTIVO)).thenReturn(2L);
+        when(publicacionRepository.countByEstado(EstadoPublicacion.DISPONIBLE)).thenReturn(15L);
+        when(publicacionRepository.countByEstado(EstadoPublicacion.SUSPENDIDO)).thenReturn(2L);
+        when(publicacionRepository.countByEstado(EstadoPublicacion.RETIRADA)).thenReturn(1L);
+        when(publicacionRepository.countByEstado(EstadoPublicacion.TRANSFERIDO)).thenReturn(5L);
+        when(reporteRepository.countByEstado(EstadoReporte.PENDIENTE)).thenReturn(3L);
+        when(reporteRepository.countByEstadoIn(List.of(EstadoReporte.ATENDIDO, EstadoReporte.DESESTIMADO)))
+            .thenReturn(4L);
+        when(transaccionRepository.countByEstado(EstadoTransaccion.COMPLETADA)).thenReturn(5L);
+
+        var overview = adminController.getOverview().getBody();
+        assertEquals(11L, overview.totalUsers());
+        assertEquals(8L, overview.activeUsers());
+        assertEquals(1L, overview.suspendedUsers());
+        assertEquals(15L, overview.activePublications());
+        assertEquals(3L, overview.pendingReports());
+        assertEquals(4L, overview.resolvedReports());
+        assertEquals(5L, overview.completedTransactions());
+
+        Usuario student = new Usuario();
+        ReflectionTestUtils.setField(student, "idUsuario", 12L);
+        student.setNombres("Ana");
+        student.setApellidos("Torres");
+        student.setCorreoInstitucional("ana@upn.pe");
+        student.setRol(RolUsuario.USUARIO);
+        student.setEstado(EstadoUsuario.ACTIVO);
+
+        Usuario admin = new Usuario();
+        ReflectionTestUtils.setField(admin, "idUsuario", 1L);
+        admin.setCorreoInstitucional("n00329443@upn.pe");
+        admin.setRol(RolUsuario.ADMIN);
+        admin.setEstado(EstadoUsuario.ACTIVO);
+
+        when(usuarioRepository.findById(12L)).thenReturn(Optional.of(student));
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(admin));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+            "n00329443@upn.pe", null);
+        var toggled = adminController.toggleUserStatus(12L, auth).getBody();
+        assertEquals(EstadoUsuario.SUSPENDIDO, toggled.estado());
+
+        var reactivated = adminController.toggleUserStatus(12L, auth).getBody();
+        assertEquals(EstadoUsuario.ACTIVO, reactivated.estado());
+
+        ResponseStatusException adminProtect = assertThrows(
+            ResponseStatusException.class,
+            () -> adminController.toggleUserStatus(1L, auth));
+        assertEquals(400, adminProtect.getStatusCode().value());
+
+        Publicacion pub = pubWithCategory("Libros", null);
+        ReflectionTestUtils.setField(pub, "idPublicacion", 55L);
+        pub.setUsuario(student);
+        pub.setTitulo("Cálculo II");
+        pub.setEstado(EstadoPublicacion.SUSPENDIDO);
+        when(publicacionRepository.findById(55L)).thenReturn(Optional.of(pub));
+        when(publicacionRepository.save(any(Publicacion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(reporteRepository.findByPublicacionIdPublicacionAndEstado(55L, EstadoReporte.PENDIENTE))
+            .thenReturn(List.of());
+
+        var activatedPub = adminController.activatePublication(55L).getBody();
+        assertEquals(EstadoPublicacion.DISPONIBLE, activatedPub.estado());
+
+        var retiredPub = adminController.retirePublication(55L).getBody();
+        assertEquals(EstadoPublicacion.RETIRADA, retiredPub.estado());
     }
 
     private static Publicacion pubWithCategory(String categoryName, BigDecimal precio) {

@@ -7,14 +7,16 @@
           <svg viewBox="0 0 24 24" aria-hidden="true">
             @switch (item.icon) {
               @case ('dashboard') { <path d="M4 4h6v6H4zM14 4h6v4h-6zM14 12h6v8h-6zM4 14h6v6H4z" /> }
-              @case ('publications') { <path d="M12 3 22 20H2L12 3Z"/><path d="M12 9v5m0 3h.01"/> }
-              @case ('reports') { <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/> }
+              @case ('publications') { <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/> }
+              @case ('reports') { <path d="M12 3 22 20H2L12 3Z"/><path d="M12 9v5m0 3h.01"/> }
               @case ('users') { <circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 5v1"/> }
               @case ('history') { <path d="M4 7v5h5M5 12a8 8 0 1 0 2-5"/><path d="M12 7v5l3 2"/> }
             }
           </svg>
           <span>{{ item.label }}</span>
-          @if (item.id === 'reports' && moderation.pendingReports() > 0) { <span class="nav-count">{{ moderation.pendingReports() }}</span> }
+          @if (item.id === 'reports' && moderation.overview().pendingReports > 0) {
+            <span class="nav-count">{{ moderation.overview().pendingReports }}</span>
+          }
         </button>
       }
       <a class="back-link" routerLink="/inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Volver al marketplace</a>
@@ -34,65 +36,304 @@
       <div class="content-heading">
         <div>
           <p class="breadcrumb">Administración <span>›</span> {{ heading }}</p>
-          <h1>{{ section() === 'dashboard' ? 'Panel de Moderación UPN' : heading }}</h1>
-          <p class="page-description">{{ section() === 'dashboard' ? 'Gestiona las publicaciones, los usuarios y la seguridad de la comunidad Campus Circular.' : section() === 'publications' ? 'Revisa el estado y la visibilidad de los materiales publicados en el campus.' : section() === 'reports' ? 'Revisa y gestiona el contenido reportado por la comunidad universitaria.' : section() === 'users' ? 'Consulta y administra las cuentas registradas de la comunidad UPN.' : 'Consulta las acciones de moderación registradas en el panel.' }}</p>
+          <h1>{{ section() === 'dashboard' ? 'Panel General de Moderación' : heading }}</h1>
+          <p class="page-description">{{ section() === 'dashboard' ? 'Indicadores en tiempo real de usuarios, publicaciones, reportes y transacciones desde MySQL.' : section() === 'publications' ? 'Revisa, suspende, retira o reactiva todas las publicaciones registradas en Campus Circular.' : section() === 'reports' ? 'Audita reportes pendientes y resueltos con vista previa de la publicación y control de reactivación.' : section() === 'users' ? 'Consulta y administra las cuentas reales registradas en la base de datos institucional.' : 'Actividad reciente y acciones de moderación registradas en el sistema.' }}</p>
         </div>
-        <span class="mode-label">Sincronizado con servidor</span>
+        <button type="button" class="mode-label refresh-pill" (click)="refreshAllAdminData()">↻ Sincronizado con MySQL</button>
       </div>
 
       @if (notice()) { <p class="admin-notice" role="status">{{ notice() }}</p> }
 
       @if (section() === 'dashboard') {
-        <section class="stats-grid" aria-label="Indicadores administrativos">
-          <article class="stat-card"><span class="stat-icon yellow-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h8M8 16h5"/></svg></span><div><strong>{{ moderation.activePublications() }}</strong><span>Publicaciones activas</span></div></article>
-          <article class="stat-card"><span class="stat-icon red-icon"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span><div><strong>{{ moderation.pendingReports() }}</strong><span>Reportes pendientes</span></div></article>
-          <article class="stat-card"><span class="stat-icon blue-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 5v1"/></svg></span><div><strong>{{ moderation.registeredUsers() }}</strong><span>Usuarios registrados</span></div></article>
-          <article class="stat-card"><span class="stat-icon green-icon"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span><div><strong>{{ moderation.moderatedPublications() }}</strong><span>Acciones de moderación</span></div></article>
+        @let ov = moderation.overview();
+        <section class="stats-grid" aria-label="Indicadores administrativos reales">
+          <article class="stat-card">
+            <span class="stat-icon blue-icon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1m2-14a3 3 0 0 1 0 6m1 2a5 5 0 0 1 3 5v1"/></svg></span>
+            <div>
+              <strong>{{ ov.activeUsers }}</strong>
+              <span>Usuarios activos</span>
+              <small class="stat-sub">{{ ov.suspendedUsers }} suspendidos · {{ ov.totalUsers }} total</small>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <span class="stat-icon yellow-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h8M8 16h5"/></svg></span>
+            <div>
+              <strong>{{ ov.activePublications }}</strong>
+              <span>Publicaciones activas</span>
+              <small class="stat-sub">{{ ov.suspendedPublications }} suspendidas · {{ ov.transferredPublications }} transferidas · {{ ov.retiredPublications }} retiradas</small>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <span class="stat-icon red-icon"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span>
+            <div>
+              <strong>{{ ov.pendingReports }}</strong>
+              <span>Reportes pendientes</span>
+              <small class="stat-sub">{{ ov.resolvedReports }} atendidos/resueltos · {{ ov.totalReports }} total</small>
+            </div>
+          </article>
+
+          <article class="stat-card">
+            <span class="stat-icon green-icon"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span>
+            <div>
+              <strong>{{ ov.completedTransactions }}</strong>
+              <span>Transacciones completadas</span>
+              <small class="stat-sub">{{ ov.activeTransactions }} solicitudes activas en curso</small>
+            </div>
+          </article>
         </section>
+
         <div class="dashboard-grid">
-          <section class="panel-card"><div class="panel-heading"><div><h2>Reportes recientes</h2><p>Requieren atención del equipo</p></div><button type="button" class="link-button" (click)="selectSection('reports')">Ver reportes</button></div>
-            @for (report of moderation.reports().slice(0, 4); track report.id) {
-              @if (moderation.materialForReport(report); as material) {
-                <button type="button" class="recent-report" (click)="reviewReport(report)"><span class="recent-material-icon" [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><span class="recent-report-copy"><strong>{{ material.title }}</strong><small>{{ report.reason }} · {{ report.reporter }}</small></span><span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span></button>
-              }
+          <section class="panel-card">
+            <div class="panel-heading">
+              <div><h2>Reportes recientes</h2><p>Datos reales sincronizados desde la base de datos</p></div>
+              <button type="button" class="link-button" (click)="selectSection('reports')">Ver todos</button>
+            </div>
+            @for (report of moderation.reports().slice(0, 5); track report.id) {
+              <button type="button" class="recent-report" (click)="openReport(report)">
+                <span class="recent-material-icon">
+                  @if (report.publicationImageUrl) {
+                    <img [src]="report.publicationImageUrl" [alt]="report.publicationTitle" />
+                  } @else {
+                    <app-material-artwork art="calculus" />
+                  }
+                </span>
+                <span class="recent-report-copy">
+                  <strong>{{ report.publicationTitle }}</strong>
+                  <small>{{ truncate(report.reason, 64) }} · {{ report.reporter }}</small>
+                </span>
+                <span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span>
+              </button>
+            } @empty {
+              <p class="empty-inline">No hay reportes registrados en el servidor.</p>
             }
           </section>
-          <section class="panel-card quick-panel"><div class="panel-heading"><div><h2>Accesos rápidos</h2><p>Administración del marketplace</p></div></div><button type="button" (click)="selectSection('publications')"><span class="quick-icon">▤</span><span><strong>Gestionar publicaciones</strong><small>Ocultar, restaurar o retirar materiales</small></span><b>›</b></button><button type="button" (click)="selectSection('users')"><span class="quick-icon">♙</span><span><strong>Gestionar usuarios</strong><small>Consultar estado de las cuentas</small></span><b>›</b></button><button type="button" (click)="selectSection('history')"><span class="quick-icon">◷</span><span><strong>Ver historial</strong><small>Registro de acciones administrativas</small></span><b>›</b></button></section>
+
+          <section class="panel-card">
+            <div class="panel-heading">
+              <div><h2>Actividad reciente en MySQL</h2><p>Últimos movimientos de publicaciones, reportes e intercambios</p></div>
+              <button type="button" class="link-button" (click)="selectSection('history')">Ver historial</button>
+            </div>
+            <div class="activity-feed">
+              @for (item of ov.recentActivity.slice(0, 6); track item.id + item.action) {
+                <div class="activity-item">
+                  <span class="activity-badge" [class]="'type-' + item.type.toLowerCase()">{{ item.type }}</span>
+                  <div class="activity-copy">
+                    <strong>{{ item.action }} · {{ item.targetLabel }}</strong>
+                    <small>{{ item.actor }} · {{ formatIsoDateTime(item.createdAt) }}</small>
+                  </div>
+                </div>
+              } @empty {
+                <p class="empty-inline">Sin actividad registrada aún.</p>
+              }
+            </div>
+          </section>
         </div>
       }
 
       @if (section() === 'publications') {
-        <section class="table-panel"><div class="table-toolbar"><div class="filter-tabs"><button type="button" [class.active]="publicationFilter() === 'Todas'" (click)="publicationFilter.set('Todas')">Todas ({{ publications.length }})</button><button type="button" [class.active]="publicationFilter() === 'Activa'" (click)="publicationFilter.set('Activa')">Activas</button><button type="button" [class.active]="publicationFilter() === 'Oculta'" (click)="publicationFilter.set('Oculta')">Ocultas</button><button type="button" [class.active]="publicationFilter() === 'Eliminada'" (click)="publicationFilter.set('Eliminada')">Eliminadas</button></div><label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar publicación..." [value]="publicationSearch()" (input)="updatePublicationSearch($event)"/></label></div>
-          <div class="table-scroll"><table><thead><tr><th>ID</th><th>Material</th><th>Categoría</th><th>Propietario</th><th>Publicación</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-            @for (material of publications; track material.id) {
-              <tr><td class="id-cell">{{ material.id }}</td><td><div class="material-cell"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><strong>{{ material.title }}</strong></div></td><td>{{ material.category }}</td><td>{{ material.owner }}</td><td>{{ formatPublicationDate(material.publishedAt, material.publishedLabel) }}</td><td><span class="status-pill" [class]="'status-pill ' + publicationStatusClass(material.id)">{{ publicationStatus(material.id) }}</span></td><td><div class="table-actions"><button type="button" class="view-button" (click)="showMaterial(material.id)">Ver</button>@if (publicationStatus(material.id) === 'Activa') { <button type="button" class="action-button warning" (click)="requestHidePublication(material.id)">Suspender</button><button type="button" class="action-button danger" (click)="requestDelete(material.id)">Retirar</button> } @else if (publicationStatus(material.id) === 'Oculta') { <button type="button" class="action-button restore" (click)="restorePublication(material.id)">Restaurar</button><button type="button" class="action-button danger" (click)="requestDelete(material.id)">Retirar</button> }</div></td></tr>
-            } @empty { <tr><td colspan="7" class="empty-cell">No se encontraron publicaciones.</td></tr> }
-          </tbody></table></div><p class="table-footnote">Las publicaciones suspendidas se ocultan del catálogo público conservando su historial de auditoría.</p>
+        <section class="table-panel">
+          <div class="table-toolbar">
+            <div class="filter-tabs">
+              <button type="button" [class.active]="publicationFilter() === 'Todas'" (click)="publicationFilter.set('Todas')">Todas ({{ allPublicationsCount() }})</button>
+              <button type="button" [class.active]="publicationFilter() === 'Activas'" (click)="publicationFilter.set('Activas')">Activas ({{ activePublicationsCount() }})</button>
+              <button type="button" [class.active]="publicationFilter() === 'Suspendidas'" (click)="publicationFilter.set('Suspendidas')">Suspendidas ({{ suspendedPublicationsCount() }})</button>
+              <button type="button" [class.active]="publicationFilter() === 'Retiradas'" (click)="publicationFilter.set('Retiradas')">Retiradas / Ocultas ({{ retiredPublicationsCount() }})</button>
+            </div>
+            <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar publicación..." [value]="publicationSearch()" (input)="updatePublicationSearch($event)"/></label>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>ID</th><th>Material</th><th>Categoría</th><th>Propietario</th><th>Publicación</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody>
+                @for (material of publications; track material.id) {
+                  <tr>
+                    <td class="id-cell">#{{ material.id }}</td>
+                    <td>
+                      <div class="material-cell">
+                        <span
+                          class="thumb-box"
+                          [class.zoomable]="(material.images?.length ?? 0) > 0"
+                          [style.backgroundColor]="material.background"
+                          (click)="openLightbox(material.images, material.title, $event)"
+                        >
+                          @if (material.images?.length) {
+                            <img [src]="material.images![0]" [alt]="material.title" title="Clic para ampliar foto" />
+                          } @else {
+                            <app-material-artwork [art]="material.art"/>
+                          }
+                        </span>
+                        <div class="material-title-col">
+                          <strong>{{ material.title }}</strong>
+                          <small>{{ material.mode }}@if (material.price !== undefined) { · S/ {{ material.price }} }</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{{ material.category }}</td>
+                    <td>{{ material.owner }}</td>
+                    <td>{{ formatDate(material.publishedAt) }}</td>
+                    <td><span class="status-pill" [class]="'status-pill ' + backendStatusClass(material.backendStatus)">{{ backendStatusLabel(material.backendStatus) }}</span></td>
+                    <td>
+                      <div class="table-actions">
+                        <button type="button" class="view-button" (click)="showMaterial(material)">Ver</button>
+                        @if (material.backendStatus === 'DISPONIBLE' || material.backendStatus === 'EN_NEGOCIACION') {
+                          <button type="button" class="action-button warning" [disabled]="busy()" (click)="requestSuspendPublication(material)">Suspender</button>
+                          <button type="button" class="action-button danger" [disabled]="busy()" (click)="requestRetirePublication(material)">Retirar</button>
+                        } @else if (material.backendStatus === 'SUSPENDIDO' || material.backendStatus === 'RETIRADA') {
+                          <button type="button" class="action-button restore" [disabled]="busy()" (click)="activatePublication(material.id)">Reactivar</button>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="7" class="empty-cell">No se encontraron publicaciones en este filtro.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="table-footnote">Las publicaciones suspendidas o retiradas se ocultan del catálogo público y pueden reactivarse en cualquier momento.</p>
         </section>
       }
 
       @if (section() === 'reports') {
-        <section class="table-panel"><div class="table-toolbar"><div class="filter-tabs"><button type="button" [class.active]="reportFilter() === 'Todas'" (click)="reportFilter.set('Todas')">Todas ({{ moderation.reports().length }})</button><button type="button" [class.active]="reportFilter() === 'Pendientes'" (click)="reportFilter.set('Pendientes')">Pendientes ({{ moderation.pendingReports() }})</button><button type="button" [class.active]="reportFilter() === 'Resueltas'" (click)="reportFilter.set('Resueltas')">Resueltas</button></div><label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar publicación..." [value]="reportSearch()" (input)="updateReportSearch($event)"/></label></div>
-          <div class="table-scroll"><table><thead><tr><th>ID</th><th>Material</th><th>Usuario</th><th>Motivo</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
-            @for (report of reports; track report.id) {
-              @if (moderation.materialForReport(report); as material) {
-                <tr><td class="id-cell">{{ report.id }}</td><td><div class="material-cell"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><strong>{{ material.title }}</strong></div></td><td>{{ report.reporter }}</td><td>{{ report.reason }}</td><td>{{ formatDate(report.reportedAt) }}</td><td><span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span></td><td>@if (report.status === 'Pendiente' || report.status === 'En revisión') { <div class="table-actions"><button type="button" class="action-button review" (click)="reviewReport(report)">Revisar</button><button type="button" class="action-button danger" (click)="suspendReportedPublication(report)">Suspender publicación</button></div> } @else { <button type="button" class="view-button" (click)="reviewReport(report)">Ver</button> }</td></tr>
-              }
-            } @empty { <tr><td colspan="7" class="empty-cell">No hay reportes en este filtro.</td></tr> }
-          </tbody></table></div><p class="table-footnote">Las acciones de moderación se aplican directamente en el servidor y actualizan el estado de la publicación.</p>
+        <section class="table-panel">
+          <div class="table-toolbar">
+            <div class="filter-tabs">
+              <button type="button" [class.active]="reportFilter() === 'Todas'" (click)="reportFilter.set('Todas')">Todas ({{ moderation.reports().length }})</button>
+              <button type="button" [class.active]="reportFilter() === 'Pendientes'" (click)="reportFilter.set('Pendientes')">Pendientes ({{ moderation.pendingReports() }})</button>
+              <button type="button" [class.active]="reportFilter() === 'Resueltas'" (click)="reportFilter.set('Resueltas')">Resueltas ({{ moderation.resolvedReports() }})</button>
+            </div>
+            <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar reporte..." [value]="reportSearch()" (input)="updateReportSearch($event)"/></label>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>ID</th><th>Material reportado</th><th>Reportante</th><th>Motivo</th><th>Fechas</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <tbody>
+                @for (report of reports; track report.id) {
+                  <tr>
+                    <td class="id-cell">{{ report.id }}</td>
+                    <td>
+                      <div class="material-cell">
+                        <span
+                          class="thumb-box"
+                          [class.zoomable]="report.publicationImages.length > 0"
+                          (click)="openLightbox(report.publicationImages, report.publicationTitle, $event)"
+                        >
+                          @if (report.publicationImageUrl) {
+                            <img [src]="report.publicationImageUrl" [alt]="report.publicationTitle" title="Clic para ampliar foto" />
+                          } @else {
+                            <app-material-artwork art="calculus" />
+                          }
+                        </span>
+                        <div class="material-title-col">
+                          <strong>{{ report.publicationTitle }}</strong>
+                          @if (report.publicationDescription) {
+                            <small>{{ truncate(report.publicationDescription, 60) }}</small>
+                          }
+                        </div>
+                      </div>
+                    </td>
+                    <td>{{ report.reporter }}</td>
+                    <td class="reason-cell">{{ report.reason }}</td>
+                    <td>
+                      <div class="date-cell">
+                        <span>Creado: {{ formatDate(report.reportedAt) }}</span>
+                        @if (report.resolvedAt) {
+                          <small>Resuelto: {{ formatDate(report.resolvedAt) }}</small>
+                        }
+                      </div>
+                    </td>
+                    <td>
+                      <span class="status-pill" [class]="'status-pill ' + reportStatusClass(report.status)">{{ report.status }}</span>
+                      <small class="pub-state-sub">{{ backendStatusLabel(report.publicationStatus) }}</small>
+                    </td>
+                    <td>
+                      <div class="table-actions">
+                        @if (report.status === 'Pendiente') {
+                          <button type="button" class="action-button review" (click)="openReport(report)">Revisar</button>
+                          <button type="button" class="action-button danger" [disabled]="busy()" (click)="suspendReportedPublication(report)">Suspender</button>
+                        } @else {
+                          <button type="button" class="view-button" (click)="openReport(report)">Ver detalle</button>
+                          @if (report.publicationStatus === 'SUSPENDIDO' || report.publicationStatus === 'RETIRADA') {
+                            <button type="button" class="action-button restore" [disabled]="busy()" (click)="activatePublication(report.publicationId)">Reactivar</button>
+                          }
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="7" class="empty-cell">No hay reportes en este filtro.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="table-footnote">Las acciones de moderación se persisten directamente en MySQL y actualizan la visibilidad del catálogo.</p>
         </section>
       }
 
       @if (section() === 'users') {
-        <section class="table-panel"><div class="table-toolbar"><div><h2 class="table-title">Usuarios de la comunidad</h2><p class="table-subtitle">{{ moderation.users().length }} cuentas registradas</p></div></div><div class="table-scroll"><table><thead><tr><th>ID</th><th>Usuario</th><th>Correo institucional</th><th>Rol</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead><tbody>
-          @for (user of moderation.users(); track user.id) { <tr><td class="id-cell">{{ user.id }}</td><td><strong>{{ user.name }}</strong></td><td>{{ user.email }}</td><td>{{ user.role }}</td><td><span class="status-pill" [class]="'status-pill ' + userStatusClass(user.status)">{{ user.status }}</span></td><td>{{ formatDate(user.registeredAt) }}</td><td><div class="table-actions"><button type="button" class="view-button" (click)="showUser(user.id)">Ver</button>@if (user.role === 'Estudiante' && user.status === 'Activo') { <button type="button" class="action-button danger" (click)="requestSuspend(user.id)">Suspender</button> } @else if (user.status === 'Suspendido') { <button type="button" class="action-button restore" (click)="reactivateUser(user.id)">Reactivar</button> }</div></td></tr> }
-        </tbody></table></div><p class="table-footnote">Suspender restringe nuevas publicaciones y solicitudes de la cuenta sin eliminar su historial de intercambios.</p></section>
+        <section class="table-panel">
+          <div class="table-toolbar">
+            <div><h2 class="table-title">Usuarios registrados en MySQL</h2><p class="table-subtitle">{{ moderation.users().length }} cuentas reales en la comunidad UPN</p></div>
+            <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="search" placeholder="Buscar usuario o correo..." [value]="userSearch()" (input)="updateUserSearch($event)"/></label>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>ID</th><th>Usuario</th><th>Correo institucional</th><th>Rol</th><th>Reputación</th><th>Estado</th><th>Registro</th><th>Acciones</th></tr></thead>
+              <tbody>
+                @for (user of filteredUsers; track user.id) {
+                  <tr>
+                    <td class="id-cell">#{{ user.id }}</td>
+                    <td><strong>{{ user.fullName }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.roleLabel }}</td>
+                    <td>{{ user.reputation !== null ? (user.reputation.toFixed(2) + ' ★') : 'Sin calificaciones' }}</td>
+                    <td><span class="status-pill" [class]="'status-pill ' + userStatusClass(user.estado)">{{ user.statusLabel }}</span></td>
+                    <td>{{ formatDate(user.registeredAt) }}</td>
+                    <td>
+                      <div class="table-actions">
+                        <button type="button" class="view-button" (click)="showUser(user)">Ver</button>
+                        @if (!isProtectedAdmin(user)) {
+                          @if (user.estado === 'ACTIVO') {
+                            <button type="button" class="action-button danger" [disabled]="busy()" (click)="requestToggleUser(user)">Suspender</button>
+                          } @else {
+                            <button type="button" class="action-button restore" [disabled]="busy()" (click)="requestToggleUser(user)">Reactivar</button>
+                          }
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="8" class="empty-cell">No se encontraron usuarios registrados.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="table-footnote">Suspender una cuenta bloquea el inicio de sesión y nuevas operaciones sin eliminar su historial de transacciones.</p>
+        </section>
       }
 
       @if (section() === 'history') {
-        <section class="table-panel"><div class="table-toolbar"><div><h2 class="table-title">Historial de moderación</h2><p class="table-subtitle">Registro de acciones administrativas realizadas</p></div></div><div class="table-scroll"><table><thead><tr><th>ID</th><th>Administrador</th><th>Acción</th><th>Elemento afectado</th><th>Fecha y hora</th><th>Descripción</th></tr></thead><tbody>
-          @for (entry of moderation.logs(); track entry.id) { <tr><td class="id-cell">{{ entry.id }}</td><td>{{ entry.admin }}</td><td><span class="log-action">{{ entry.action }}</span></td><td>{{ entry.targetLabel }}</td><td>{{ formatDateTime(entry.createdAt) }}</td><td>{{ entry.description }}</td></tr> } @empty { <tr><td colspan="6" class="empty-cell">Aún no hay acciones administrativas registradas.</td></tr> }
-        </tbody></table></div></section>
+        <section class="table-panel">
+          <div class="table-toolbar"><div><h2 class="table-title">Historial y actividad del sistema</h2><p class="table-subtitle">Eventos recientes en base de datos y acciones administrativas de la sesión</p></div></div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>ID</th><th>Tipo / Origen</th><th>Acción</th><th>Elemento afectado</th><th>Fecha y hora</th><th>Detalle</th></tr></thead>
+              <tbody>
+                @for (entry of moderation.logs(); track entry.id) {
+                  <tr><td class="id-cell">{{ entry.id }}</td><td>{{ entry.admin }}</td><td><span class="log-action">{{ entry.action }}</span></td><td>{{ entry.targetLabel }}</td><td>{{ formatDateTime(entry.createdAt) }}</td><td>{{ entry.description }}</td></tr>
+                }
+                @for (item of moderation.overview().recentActivity; track item.id + item.action) {
+                  <tr><td class="id-cell">{{ item.id }}</td><td>{{ item.actor }}</td><td><span class="log-action">{{ item.action }}</span></td><td>{{ item.targetLabel }}</td><td>{{ formatIsoDateTime(item.createdAt) }}</td><td>{{ item.description }}</td></tr>
+                }
+                @if (moderation.logs().length === 0 && moderation.overview().recentActivity.length === 0) {
+                  <tr><td colspan="6" class="empty-cell">Aún no hay actividad registrada.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
       }
 
       <p class="security-note">Acceso verificado por rol institucional (ADMIN / ADMIN_AUDITOR) · Campus Circular UPN.</p>
@@ -101,21 +342,150 @@
 </div>
 
 @if (selectedReport(); as report) {
-  <div class="admin-modal-backdrop" (click)="closeDialogs()"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="closeDialogs()">×</button><p class="dialog-eyebrow">{{ report.id }} · {{ report.status }}</p><h2 id="review-title">Revisar publicación reportada</h2>@if (moderation.materialForReport(report); as material) { <div class="dialog-material"><span [style.backgroundColor]="material.background"><app-material-artwork [art]="material.art"/></span><div><strong>{{ material.title }}</strong><small>{{ material.owner }} · {{ material.category }} · {{ publicationStatus(material.id) }}</small></div></div> }<dl class="report-detail-list"><div><dt>Reportado por</dt><dd>{{ report.reporter }}</dd></div><div><dt>Motivo</dt><dd>{{ report.reason }}</dd></div><div><dt>Fecha</dt><dd>{{ formatDateTime(report.reportedAt) }}</dd></div>@if (report.details) { <div><dt>Detalle</dt><dd>{{ report.details }}</dd></div> }</dl><div class="dialog-actions">@if (report.status === 'Pendiente' || report.status === 'En revisión') { <button type="button" class="action-button danger" (click)="suspendReportedPublication(report)">Suspender publicación</button><button type="button" class="action-button" (click)="discardReport(report); closeDialogs()">Descartar</button> } @else { <button type="button" class="primary-action" (click)="closeDialogs()">Cerrar</button> }</div></section></div>
+  <div class="admin-modal-backdrop" (click)="closeDialogs()">
+    <section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title" (click)="$event.stopPropagation()">
+      <button class="dialog-close" type="button" aria-label="Cerrar" (click)="closeDialogs()">×</button>
+      <p class="dialog-eyebrow">{{ report.id }} · {{ report.status }}</p>
+      <h2 id="review-title">Revisar publicación reportada</h2>
+
+      @if (report.publicationImageUrl) {
+        <div class="dialog-photo-preview" (click)="openLightbox(report.publicationImages, report.publicationTitle, $event)">
+          <img [src]="report.publicationImageUrl" [alt]="report.publicationTitle" />
+          <span class="photo-zoom-hint">Clic para ampliar foto</span>
+        </div>
+      }
+
+      <div class="dialog-material">
+        <span class="thumb-box">
+          @if (report.publicationImageUrl) {
+            <img [src]="report.publicationImageUrl" [alt]="report.publicationTitle" />
+          } @else {
+            <app-material-artwork art="calculus"/>
+          }
+        </span>
+        <div>
+          <strong>{{ report.publicationTitle }}</strong>
+          <small>{{ report.ownerEmail }} · {{ report.publicationCategory }} · {{ backendStatusLabel(report.publicationStatus) }}</small>
+        </div>
+      </div>
+
+      @if (report.publicationDescription) {
+        <p class="dialog-description-box">{{ report.publicationDescription }}</p>
+      }
+
+      <dl class="report-detail-list">
+        <div><dt>Reportado por</dt><dd>{{ report.reporter }}</dd></div>
+        <div><dt>Motivo completo</dt><dd>{{ report.reason }}</dd></div>
+        <div><dt>Fecha de reporte</dt><dd>{{ formatDateTime(report.reportedAt) }}</dd></div>
+        @if (report.resolvedAt) {
+          <div><dt>Fecha de resolución</dt><dd>{{ formatDateTime(report.resolvedAt) }}</dd></div>
+        }
+        <div><dt>Modalidad</dt><dd>{{ report.publicationModality }}@if (report.publicationPrice !== null) { · S/ {{ report.publicationPrice }} }</dd></div>
+      </dl>
+
+      <div class="dialog-actions">
+        @if (report.status === 'Pendiente') {
+          <button type="button" class="action-button danger" [disabled]="busy()" (click)="suspendReportedPublication(report)">Suspender publicación</button>
+          <button type="button" class="action-button" [disabled]="busy()" (click)="dismissReport(report)">Desestimar reporte</button>
+        }
+        @if (report.publicationStatus === 'SUSPENDIDO' || report.publicationStatus === 'RETIRADA') {
+          <button type="button" class="action-button restore" [disabled]="busy()" (click)="activatePublication(report.publicationId)">Reactivar publicación</button>
+        }
+        <button type="button" class="primary-action" (click)="closeDialogs()">Cerrar</button>
+      </div>
+    </section>
+  </div>
 }
 
-@if (confirmation(); as pendingConfirmation) {
-  <div class="admin-modal-backdrop" (click)="confirmation.set(null)"><section class="admin-dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cancelar" (click)="confirmation.set(null)">×</button><h2 id="confirm-title">{{ pendingConfirmation.type === 'suspend' ? 'Suspender usuario' : pendingConfirmation.type === 'delete' || pendingConfirmation.type === 'deleteReported' ? 'Retirar publicación' : 'Suspender publicación' }}</h2><p>{{ pendingConfirmation.type === 'suspend' ? 'La cuenta no podrá crear nuevas publicaciones ni solicitudes mientras permanezca suspendida.' : pendingConfirmation.type === 'deleteReported' ? 'La publicación dejará de estar disponible y el reporte quedará resuelto. Su registro histórico se conservará.' : pendingConfirmation.type === 'hide' ? 'La publicación dejará de aparecer en el marketplace y el reporte quedará resuelto.' : pendingConfirmation.type === 'delete' ? 'La publicación dejará de estar disponible. Su registro histórico se conservará.' : 'La publicación dejará de aparecer en el marketplace hasta que se restaure.' }}</p><div class="dialog-actions"><button type="button" class="action-button" (click)="confirmation.set(null)">Cancelar</button><button type="button" class="primary-action" (click)="confirmAction()">{{ pendingConfirmation.type === 'deleteReported' ? 'Dar de baja y resolver' : 'Confirmar acción' }}</button></div></section></div>
+@if (selectedMaterial(); as material) {
+  <div class="admin-modal-backdrop" (click)="selectedMaterial.set(null)">
+    <section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="material-dialog-title" (click)="$event.stopPropagation()">
+      <button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedMaterial.set(null)">×</button>
+      <p class="dialog-eyebrow">#{{ material.id }} · {{ material.category }} · {{ backendStatusLabel(material.backendStatus) }}</p>
+      <h2 id="material-dialog-title">{{ material.title }}</h2>
+
+      @if (material.images?.length) {
+        <div class="dialog-photo-preview" (click)="openLightbox(material.images, material.title, $event)">
+          <img [src]="material.images![0]" [alt]="material.title" />
+          <span class="photo-zoom-hint">Clic para ampliar foto ({{ material.images!.length }})</span>
+        </div>
+      }
+
+      <p class="dialog-description-box">{{ material.description }}</p>
+      <dl class="report-detail-list">
+        <div><dt>Propietario</dt><dd>{{ material.owner }}</dd></div>
+        <div><dt>Carrera</dt><dd>{{ material.career }}</dd></div>
+        <div><dt>Estado físico</dt><dd>{{ material.condition }}</dd></div>
+        <div><dt>Modalidad</dt><dd>{{ material.mode }}@if (material.price !== undefined) { · S/ {{ material.price }} }</dd></div>
+        <div><dt>Publicado</dt><dd>{{ formatDateTime(material.publishedAt) }}</dd></div>
+      </dl>
+
+      <div class="dialog-actions">
+        @if (material.backendStatus === 'DISPONIBLE' || material.backendStatus === 'EN_NEGOCIACION') {
+          <button type="button" class="action-button warning" [disabled]="busy()" (click)="requestSuspendPublication(material)">Suspender</button>
+          <button type="button" class="action-button danger" [disabled]="busy()" (click)="requestRetirePublication(material)">Retirar</button>
+        } @else if (material.backendStatus === 'SUSPENDIDO' || material.backendStatus === 'RETIRADA') {
+          <button type="button" class="action-button restore" [disabled]="busy()" (click)="activatePublication(material.id)">Reactivar publicación</button>
+        }
+        <button type="button" class="primary-action" (click)="selectedMaterial.set(null)">Cerrar</button>
+      </div>
+    </section>
+  </div>
 }
 
-@if (selectedMaterialId(); as materialId) {
-  @if (catalog.findById(materialId); as material) {
-    <div class="admin-modal-backdrop" (click)="selectedMaterialId.set(null)"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="material-dialog-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedMaterialId.set(null)">×</button><p class="dialog-eyebrow">{{ material.category }} · {{ publicationStatus(material.id) }}</p><h2 id="material-dialog-title">{{ material.title }}</h2><p>{{ material.description }}</p><dl class="report-detail-list"><div><dt>Propietario</dt><dd>{{ material.owner }}</dd></div><div><dt>Carrera</dt><dd>{{ material.career }}</dd></div><div><dt>Estado y modalidad</dt><dd>{{ material.condition }} · {{ material.mode }}</dd></div><div><dt>Precio</dt><dd>{{ material.price === undefined ? 'No aplica' : 'S/ ' + material.price }}</dd></div></dl><button type="button" class="primary-action full-width" (click)="selectedMaterialId.set(null)">Cerrar</button></section></div>
-  }
+@if (selectedUser(); as user) {
+  <div class="admin-modal-backdrop" (click)="selectedUser.set(null)">
+    <section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="user-dialog-title" (click)="$event.stopPropagation()">
+      <button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedUser.set(null)">×</button>
+      <p class="dialog-eyebrow">Usuario #{{ user.id }} · {{ user.roleLabel }} · {{ user.statusLabel }}</p>
+      <h2 id="user-dialog-title">{{ user.fullName }}</h2>
+      <dl class="report-detail-list">
+        <div><dt>Correo institucional</dt><dd>{{ user.email }}</dd></div>
+        <div><dt>Rol</dt><dd>{{ user.roleLabel }} ({{ user.rol }})</dd></div>
+        <div><dt>Reputación</dt><dd>{{ user.reputation !== null ? (user.reputation.toFixed(2) + ' ★') : 'Sin calificaciones' }}</dd></div>
+        <div><dt>Estado</dt><dd>{{ user.statusLabel }}</dd></div>
+        <div><dt>Fecha de registro</dt><dd>{{ formatDateTime(user.registeredAt) }}</dd></div>
+      </dl>
+      <div class="dialog-actions">
+        @if (!isProtectedAdmin(user)) {
+          <button type="button" class="action-button" [class.danger]="user.estado === 'ACTIVO'" [class.restore]="user.estado !== 'ACTIVO'" [disabled]="busy()" (click)="requestToggleUser(user)">
+            {{ user.estado === 'ACTIVO' ? 'Suspender cuenta' : 'Reactivar cuenta' }}
+          </button>
+        }
+        <button type="button" class="primary-action" (click)="selectedUser.set(null)">Cerrar</button>
+      </div>
+    </section>
+  </div>
 }
 
-@if (selectedUserId(); as userId) {
-  @if (moderation.userById(userId); as user) {
-    <div class="admin-modal-backdrop" (click)="selectedUserId.set(null)"><section class="admin-dialog" role="dialog" aria-modal="true" aria-labelledby="user-dialog-title" (click)="$event.stopPropagation()"><button class="dialog-close" type="button" aria-label="Cerrar" (click)="selectedUserId.set(null)">×</button><p class="dialog-eyebrow">{{ user.role }} · {{ user.status }}</p><h2 id="user-dialog-title">{{ user.name }}</h2><dl class="report-detail-list"><div><dt>Correo institucional</dt><dd>{{ user.email }}</dd></div><div><dt>Fecha de registro</dt><dd>{{ formatDate(user.registeredAt) }}</dd></div><div><dt>Estado</dt><dd>{{ user.status }}</dd></div></dl><button type="button" class="primary-action full-width" (click)="selectedUserId.set(null)">Cerrar</button></section></div>
-  }
+@if (confirmation(); as pending) {
+  <div class="admin-modal-backdrop" (click)="confirmation.set(null)">
+    <section class="admin-dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" (click)="$event.stopPropagation()">
+      <button class="dialog-close" type="button" aria-label="Cancelar" (click)="confirmation.set(null)">×</button>
+      <h2 id="confirm-title">
+        @if (pending.type === 'suspendPublication') { Suspender publicación }
+        @else if (pending.type === 'retirePublication') { Retirar publicación }
+        @else { {{ pending.currentStatus === 'ACTIVO' ? 'Suspender usuario' : 'Reactivar usuario' }} }
+      </h2>
+      <p>
+        @if (pending.type === 'suspendPublication') {
+          La publicación <strong>{{ pending.label }}</strong> pasará a estado <b>SUSPENDIDO</b> y dejará de mostrarse en el catálogo público hasta que la reactives.
+        } @else if (pending.type === 'retirePublication') {
+          La publicación <strong>{{ pending.label }}</strong> pasará a estado <b>RETIRADA</b>. Podrás reactivarla más adelante si fue un error.
+        } @else if (pending.currentStatus === 'ACTIVO') {
+          La cuenta <strong>{{ pending.label }}</strong> pasará a estado <b>SUSPENDIDO</b> y no podrá iniciar sesión ni operar en la plataforma.
+        } @else {
+          La cuenta <strong>{{ pending.label }}</strong> volverá a estado <b>ACTIVO</b> y podrá operar nuevamente en Campus Circular.
+        }
+      </p>
+      <div class="dialog-actions">
+        <button type="button" class="action-button" [disabled]="busy()" (click)="confirmation.set(null)">Cancelar</button>
+        <button type="button" class="primary-action" [disabled]="busy()" (click)="confirmAction()">{{ busy() ? 'Procesando...' : 'Confirmar acción' }}</button>
+      </div>
+    </section>
+  </div>
+}
+
+@if (lightboxImages().length > 0) {
+  <app-image-lightbox [images]="lightboxImages()" [title]="lightboxTitle()" (closed)="closeLightbox()" />
 }

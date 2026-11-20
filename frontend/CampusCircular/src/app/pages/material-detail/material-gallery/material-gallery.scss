@@ -1,6 +1,9 @@
 :host { display: block; min-width: 0; }
 .gallery-panel { background: var(--cc-white); border: 1px solid #e8ebef; border-radius: 1.1rem; box-shadow: 0 9px 28px rgba(30,41,59,.06); min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); }
 .main-image { align-items: center; border-radius: 0.8rem; display: flex; height: clamp(300px, 34vw, 480px); justify-content: center; overflow: hidden; position: relative; }
+.main-image.zoomable { cursor: zoom-in; }
+.main-image.zoomable:hover .zoom-hint { opacity: 1; }
+.zoom-hint { background: rgba(17, 24, 39, 0.72); border-radius: 999px; bottom: 0.75rem; color: #fff; font-size: 0.72rem; font-weight: 700; opacity: 0.82; padding: 0.32rem 0.7rem; pointer-events: none; position: absolute; right: 0.75rem; transition: opacity 140ms ease; z-index: 2; }
 .main-image-glow { background: rgba(255,255,255,.38); border-radius: 50%; height: 75%; position: absolute; right: -5%; top: -22%; width: 48%; }
 .main-image app-material-artwork { height: min(74%, 340px); position: relative; width: min(74%, 380px); z-index: 1; }
 .uploaded-image { height: 100%; object-fit: contain; position: relative; width: 100%; z-index: 1; }

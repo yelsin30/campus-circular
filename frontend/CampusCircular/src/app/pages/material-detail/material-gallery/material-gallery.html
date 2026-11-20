@@ -1,7 +1,18 @@
 <section class="gallery-panel" aria-label="Galería del material">
-  <div class="main-image" [style.backgroundColor]="background">
+  <div
+    class="main-image"
+    [class.zoomable]="images.length > 0"
+    [style.backgroundColor]="background"
+    (click)="openLightbox()"
+    [attr.role]="images.length > 0 ? 'button' : null"
+    [attr.tabindex]="images.length > 0 ? 0 : null"
+    [attr.aria-label]="images.length > 0 ? 'Ampliar foto del material' : null"
+    (keydown.enter)="openLightbox()"
+    (keydown.space)="$event.preventDefault(); openLightbox()"
+  >
     @if (images.length > 0) {
       <img class="uploaded-image" [src]="images[activeView] || images[0]" alt="Foto del material publicado" />
+      <span class="zoom-hint" aria-hidden="true">🔍 Ampliar</span>
     } @else {
       <div class="main-image-glow"></div>
       <app-material-artwork [art]="art" [variant]="activeView" />
@@ -18,5 +29,5 @@
       }
     </div>
   }
-  <p class="gallery-caption">{{ images.length > 0 ? 'Fotografías reales subidas por el propietario.' : 'Ilustración referencial del material publicado.' }}</p>
+  <p class="gallery-caption">{{ images.length > 0 ? 'Fotografías reales subidas por el propietario. Haz clic en la imagen para ampliarla.' : 'Ilustración referencial del material publicado.' }}</p>
 </section>

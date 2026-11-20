@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -119,7 +120,8 @@ class TransactionServiceTest {
                 "solicitante@upn.pe", new CreateTransactionRequest(101L, 202L)));
 
         assertEquals(403, exception.getStatusCode().value());
-        verifyNoInteractions(transactionRepository, offerRepository);
+        verify(transactionRepository, never()).save(any());
+        verifyNoInteractions(offerRepository);
     }
 
     @Test
@@ -173,7 +175,8 @@ class TransactionServiceTest {
         assertEquals(
             "La publicación solicitada no permite trueque porque su modalidad es VENTA_SOLIDARIA (se requiere TRUEQUE)",
             exception.getReason());
-        verifyNoInteractions(transactionRepository, offerRepository);
+        verify(transactionRepository, never()).save(any());
+        verifyNoInteractions(offerRepository);
     }
 
     @Test
@@ -203,7 +206,69 @@ class TransactionServiceTest {
         assertEquals(
             "La publicación solicitada no está disponible para trueque porque su estado es EN_NEGOCIACION (se requiere DISPONIBLE)",
             exception.getReason());
-        verifyNoInteractions(transactionRepository, offerRepository);
+        verify(transactionRepository, never()).save(any());
+        verifyNoInteractions(offerRepository);
+    }
+
+    @Test
+    void rejectsDuplicateActiveTransactionWithConflict() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(publicationRepository.findById(101L)).thenReturn(Optional.of(requested));
+        when(transactionRepository.existsByPublicacionIdPublicacionAndSolicitanteIdUsuarioAndEstadoIn(
+                101L, 11L, List.of(EstadoTransaccion.PENDIENTE, EstadoTransaccion.EN_NEGOCIACION)))
+            .thenReturn(true);
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> service.create(
+                "solicitante@upn.pe", new CreateTransactionRequest(101L, 202L)));
+
+        assertEquals(409, exception.getStatusCode().value());
+        assertEquals(
+            "Ya tienes una solicitud activa para este material. Puedes continuar la coordinación desde Mis intercambios",
+            exception.getReason());
+        verify(transactionRepository, never()).save(any());
+        verifyNoInteractions(offerRepository);
+    }
+
+    @Test
+    void rejectsPendingTransactionAndStoresRejectionReason() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Transaccion tx = transaction(301L, requested, requester, owner, EstadoTransaccion.PENDIENTE);
+
+        when(userRepository.findByCorreoInstitucional("propietario@upn.pe"))
+            .thenReturn(Optional.of(owner));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(offerRepository.findFirstByTransaccionIdTransaccion(301L)).thenReturn(Optional.empty());
+        when(transactionRepository.save(any(Transaccion.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = service.reject(
+            "propietario@upn.pe", 301L, "Ya acordé el intercambio con otro estudiante");
+
+        assertEquals(EstadoTransaccion.RECHAZADA, response.estado());
+        assertEquals("Ya acordé el intercambio con otro estudiante", response.motivoRechazo());
+        assertEquals(EstadoPublicacion.DISPONIBLE, requested.getEstado());
     }
 
     @Test

@@ -1,11 +1,11 @@
 <article class="request-row" [class.row-selected]="selected" [class.row-rejected]="request.status === 'Rechazado'" (click)="emit('select')">
-  <div class="request-art" [style.backgroundColor]="material.background">
-    @if (material.images?.length) { <img [src]="material.images![0]" [alt]="material.title" /> }
+  <div class="request-art" [class.zoomable]="(material.images?.length ?? 0) > 0" [style.backgroundColor]="material.background" (click)="material.images?.length ? emit('zoom', $event) : null">
+    @if (material.images?.length) { <img [src]="material.images![0]" [alt]="material.title" title="Clic para ampliar foto" /> }
     @else { <app-material-artwork [art]="material.art" /> }
   </div>
   <div class="request-content">
     <div class="request-title-line"><h2>{{ material.title }}</h2><span class="status-badge" [class]="statusClass">{{ request.status }}</span></div>
-    <p class="request-meta"><span class="person-icon" aria-hidden="true">●</span> {{ activeTab === 'sent' ? 'Para:' : 'De:' }} {{ counterparty }} <span class="separator">·</span> {{ request.mode }}@if (request.mode === 'Precio solidario' && material.price !== undefined) { · S/ {{ material.price }} }</p>
+    <p class="request-meta"><span class="person-icon" aria-hidden="true">●</span> {{ counterpartyPrefix }} {{ counterparty }} <span class="separator">·</span> {{ request.mode }}@if (request.mode === 'Precio solidario' && material.price !== undefined) { · S/ {{ material.price }} }</p>
     @if (request.offeredMaterial) {
       <p class="request-date">Material ofrecido: <strong>{{ request.offeredMaterial }}</strong> · {{ request.dateLabel }}</p>
     } @else {
@@ -15,10 +15,20 @@
 
     @if (request.status === 'Rechazado') {
       <div class="rejected-banner" role="status">
-        @if (activeTab === 'sent') {
-          <strong>Solicitud rechazada:</strong> El propietario rechazó tu propuesta. Puedes explorar otros materiales disponibles en el catálogo.
+        @if (!isOwner) {
+          <strong>Solicitud rechazada:</strong>
+          @if (request.rejectionReason) {
+            <span>Motivo: “{{ request.rejectionReason }}”.</span>
+          } @else {
+            <span>El propietario rechazó tu propuesta. Puedes explorar otros materiales disponibles en el catálogo.</span>
+          }
         } @else {
-          <strong>Rechazada por ti:</strong> Esta solicitud fue rechazada y la publicación permanece disponible.
+          <strong>Rechazada por ti:</strong>
+          @if (request.rejectionReason) {
+            <span>Motivo indicado: “{{ request.rejectionReason }}”.</span>
+          } @else {
+            <span>Esta solicitud fue rechazada y la publicación permanece disponible.</span>
+          }
         }
       </div>
     } @else if (activeTab === 'received' && request.status === 'Pendiente') {

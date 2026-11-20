@@ -10,7 +10,7 @@
     </div>
     <p class="side-description">Acuerden lugar y hora de entrega dentro del campus UPN (sin pasarela de pagos).</p>
     @if (request; as selected) {
-      <div class="chat-messages" role="log" aria-live="polite">
+      <div #chatMessagesContainer class="chat-messages" role="log" aria-live="polite">
         @if (loadingMessages() && messages().length === 0) {
           <p class="chat-empty">Cargando mensajes...</p>
         } @else if (messages().length === 0) {
@@ -89,6 +89,9 @@
         <div class="no-selected" [class.rejected-notice]="selected.status === 'Rechazado'">
           @if (selected.status === 'Rechazado') {
             <p><strong>Solicitud rechazada.</strong> Esta transacción fue rechazada por el propietario y no puede avanzar a entrega presencial.</p>
+            @if (selected.rejectionReason) {
+              <p class="rejection-reason-detail"><strong>Motivo:</strong> {{ selected.rejectionReason }}</p>
+            }
           } @else {
             <p>Selecciona una transacción <strong>En negociación</strong> para generar o validar el código OTP de entrega.</p>
             @if (selected.status === 'Completado') { <span>Esta entrega ya fue completada.</span> }

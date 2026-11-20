@@ -1,0 +1,111 @@
+.lightbox-backdrop {
+  align-items: center;
+  animation: lightbox-fade 160ms ease-out;
+  backdrop-filter: blur(4px);
+  background: rgba(12, 16, 24, 0.88);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1.5rem;
+  position: fixed;
+  z-index: 2000;
+}
+
+@keyframes lightbox-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lightbox-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  font-size: 1.6rem;
+  height: 44px;
+  justify-content: center;
+  line-height: 1;
+  position: fixed;
+  right: 1.25rem;
+  top: 1.25rem;
+  transition: background-color 140ms ease;
+  width: 44px;
+  z-index: 2002;
+}
+
+.lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.lightbox-stage {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  max-height: 92vh;
+  max-width: min(92vw, 1180px);
+}
+
+.lightbox-stage img {
+  border-radius: 0.75rem;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  display: block;
+  max-height: 82vh;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.lightbox-caption {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  font-size: 0.82rem;
+  gap: 0.75rem;
+  justify-content: center;
+  text-align: center;
+}
+
+.lightbox-counter {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+}
+
+.lightbox-nav {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  font-size: 1.9rem;
+  height: 46px;
+  justify-content: center;
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: background-color 140ms ease;
+  width: 46px;
+  z-index: 2002;
+}
+
+.lightbox-nav:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.lightbox-prev { left: 1.25rem; }
+.lightbox-next { right: 1.25rem; }
+
+@media (max-width: 600px) {
+  .lightbox-backdrop { padding: 0.75rem; }
+  .lightbox-nav { height: 38px; width: 38px; font-size: 1.5rem; }
+  .lightbox-prev { left: 0.5rem; }
+  .lightbox-next { right: 0.5rem; }
+}

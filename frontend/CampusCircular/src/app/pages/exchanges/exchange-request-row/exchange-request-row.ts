@@ -3,7 +3,7 @@ import { ExchangeRequest, ExchangeTab } from '../../../data/exchange.service';
 import { MarketplaceMaterial } from '../../../data/material-catalog';
 import { MaterialArtwork } from '../../../shared/material-artwork/material-artwork';
 
-export type ExchangeRowAction = 'select' | 'accept' | 'reject' | 'agreement';
+export type ExchangeRowAction = 'select' | 'accept' | 'reject' | 'agreement' | 'zoom';
 
 @Component({
   selector: 'app-exchange-request-row',
@@ -16,6 +16,7 @@ export class ExchangeRequestRow {
   @Input({ required: true }) request!: ExchangeRequest;
   @Input({ required: true }) material!: MarketplaceMaterial;
   @Input() currentUser = '';
+  @Input() isOwner = false;
   @Input() activeTab: ExchangeTab = 'received';
   @Input() selected = false;
   @Input() agreementDetailsVisible = false;
@@ -29,7 +30,14 @@ export class ExchangeRequestRow {
     if (this.activeTab === 'sent') {
       return this.request.owner;
     }
-    return this.request.owner === this.currentUser ? this.request.requester : this.request.owner;
+    return this.isOwner ? this.request.requester : this.request.owner;
+  }
+
+  get counterpartyPrefix(): string {
+    if (this.activeTab === 'sent' || (!this.isOwner && this.activeTab === 'rejected')) {
+      return 'Para:';
+    }
+    return 'De:';
   }
 
   get statusClass(): string {

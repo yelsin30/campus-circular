@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   afterNextRender,
   Component,
+  computed,
   DestroyRef,
   inject,
   PLATFORM_ID,
@@ -11,33 +12,35 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../data/auth.service';
-import { MaterialCatalogService } from '../../data/material-catalog.service';
+import { MarketplaceMaterial } from '../../data/material-catalog';
 import {
+  AdminUser,
   ModerationService,
   PublicationReport,
   ReportStatus,
-  UserStatus,
 } from '../../data/moderation.service';
-import { PublicationService } from '../../data/publication.service';
+import { BackendPublicationStatus, PublicationService } from '../../data/publication.service';
+import { ImageLightbox } from '../../shared/image-lightbox/image-lightbox';
 import { MaterialArtwork } from '../../shared/material-artwork/material-artwork';
 
 type AdminSection = 'dashboard' | 'publications' | 'reports' | 'users' | 'history';
 type ReportFilter = 'Todas' | 'Pendientes' | 'Resueltas';
-type PublicationFilter = 'Todas' | 'Activa' | 'Oculta' | 'Eliminada';
+type PublicationFilter = 'Todas' | 'Activas' | 'Suspendidas' | 'Retiradas';
 type ConfirmationAction = {
-  type: 'hide' | 'hidePublication' | 'delete' | 'deleteReported' | 'suspend' | 'suspendPublication';
-  id: string;
+  type: 'suspendPublication' | 'retirePublication' | 'toggleUser';
+  id: number;
+  label: string;
+  currentStatus?: string;
 } | null;
 
 @Component({
   selector: 'app-admin-page',
   standalone: true,
-  imports: [RouterLink, MaterialArtwork],
+  imports: [RouterLink, MaterialArtwork, ImageLightbox],
   templateUrl: './admin.html',
 })
 export class AdminPage {
   readonly moderation = inject(ModerationService);
-  readonly catalog = inject(MaterialCatalogService);
   readonly auth = inject(AuthService);
   private readonly publicationService = inject(PublicationService);
   private readonly router = inject(Router);
@@ -52,17 +55,41 @@ export class AdminPage {
     { id: 'history', label: 'Historial', icon: 'history' },
   ];
 
-  readonly section = signal<AdminSection>('reports');
+  readonly section = signal<AdminSection>('dashboard');
   readonly reportFilter = signal<ReportFilter>('Pendientes');
   readonly publicationFilter = signal<PublicationFilter>('Todas');
   readonly reportSearch = signal('');
   readonly publicationSearch = signal('');
+  readonly userSearch = signal('');
   readonly selectedReport = signal<PublicationReport | null>(null);
-  readonly selectedMaterialId = signal<string | null>(null);
-  readonly selectedUserId = signal<string | null>(null);
+  readonly selectedMaterial = signal<MarketplaceMaterial | null>(null);
+  readonly selectedUser = signal<AdminUser | null>(null);
   readonly confirmation = signal<ConfirmationAction>(null);
   readonly notice = signal('');
+  readonly busy = signal(false);
   readonly isMobileMenuOpen = signal(false);
+
+  readonly lightboxImages = signal<string[]>([]);
+  readonly lightboxTitle = signal('');
+
+  readonly allPublicationsCount = computed(() => this.moderation.adminPublications().length);
+  readonly activePublicationsCount = computed(
+    () =>
+      this.moderation
+        .adminPublications()
+        .filter((p) => p.backendStatus === 'DISPONIBLE' || p.backendStatus === 'EN_NEGOCIACION')
+        .length,
+  );
+  readonly suspendedPublicationsCount = computed(
+    () =>
+      this.moderation.adminPublications().filter((p) => p.backendStatus === 'SUSPENDIDO').length,
+  );
+  readonly retiredPublicationsCount = computed(
+    () =>
+      this.moderation
+        .adminPublications()
+        .filter((p) => p.backendStatus === 'RETIRADA' || p.backendStatus === 'TRANSFERIDO').length,
+  );
 
   constructor() {
     if (this.router.url.includes('/reportes')) {
@@ -71,14 +98,7 @@ export class AdminPage {
 
     afterNextRender(() => {
       if (!isPlatformBrowser(this.platformId)) return;
-      this.publicationService
-        .getPublications({ page: 0, size: 50 })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe();
-      this.moderation
-        .loadAdminReports(true)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe();
+      this.refreshAllAdminData();
     });
   }
 
@@ -95,18 +115,21 @@ export class AdminPage {
     return this.menuItems.find((item) => item.id === this.section())?.label ?? 'Panel general';
   }
 
-  get publications() {
+  get publications(): MarketplaceMaterial[] {
     const query = this.publicationSearch().trim().toLocaleLowerCase('es');
-    const source = this.publicationService.publications().length
-      ? this.publicationService.publications()
-      : this.catalog.materials();
-    return source.filter((material) => {
-      const status = this.moderation.getPublicationStatus(material);
+    return this.moderation.adminPublications().filter((material) => {
+      const status = material.backendStatus ?? 'DISPONIBLE';
       const matchesFilter =
-        this.publicationFilter() === 'Todas' || status === this.publicationFilter();
+        this.publicationFilter() === 'Todas' ||
+        (this.publicationFilter() === 'Activas' &&
+          (status === 'DISPONIBLE' || status === 'EN_NEGOCIACION')) ||
+        (this.publicationFilter() === 'Suspendidas' && status === 'SUSPENDIDO') ||
+        (this.publicationFilter() === 'Retiradas' &&
+          (status === 'RETIRADA' || status === 'TRANSFERIDO'));
+
       const matchesText =
         !query ||
-        `${material.title} ${material.owner} ${material.category}`
+        `${material.id} ${material.title} ${material.owner} ${material.category} ${status}`
           .toLocaleLowerCase('es')
           .includes(query);
       return matchesFilter && matchesText;
@@ -118,17 +141,25 @@ export class AdminPage {
     return this.moderation.reports().filter((report) => {
       const matchesTab =
         this.reportFilter() === 'Todas' ||
-        (this.reportFilter() === 'Pendientes' &&
-          (report.status === 'Pendiente' || report.status === 'En revisión')) ||
+        (this.reportFilter() === 'Pendientes' && report.status === 'Pendiente') ||
         (this.reportFilter() === 'Resueltas' &&
           (report.status === 'Resuelto' || report.status === 'Descartado'));
-      const material = this.moderation.materialForReport(report);
       const matchesText =
         !query ||
-        `${material.title} ${report.reporter} ${report.reason}`
+        `${report.id} ${report.publicationTitle} ${report.reporter} ${report.reason} ${report.ownerEmail}`
           .toLocaleLowerCase('es')
           .includes(query);
       return matchesTab && matchesText;
+    });
+  }
+
+  get filteredUsers(): AdminUser[] {
+    const query = this.userSearch().trim().toLocaleLowerCase('es');
+    return this.moderation.users().filter((user) => {
+      if (!query) return true;
+      return `${user.id} ${user.fullName} ${user.email} ${user.roleLabel} ${user.statusLabel}`
+        .toLocaleLowerCase('es')
+        .includes(query);
     });
   }
 
@@ -136,12 +167,27 @@ export class AdminPage {
     this.section.set(section);
     this.notice.set('');
     this.isMobileMenuOpen.set(false);
-    if (section === 'reports') {
-      this.moderation
-        .loadAdminReports(true)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe();
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    if (section === 'dashboard' || section === 'history') {
+      this.moderation.loadAdminOverview().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
     }
+    if (section === 'publications') {
+      this.moderation.loadAdminPublications().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
+    if (section === 'reports' || section === 'dashboard') {
+      this.moderation.loadAdminReports(true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
+    if (section === 'users') {
+      this.moderation.loadAdminUsers().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    }
+  }
+
+  refreshAllAdminData(): void {
+    this.moderation.loadAdminOverview().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminPublications().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminReports(true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminUsers().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   updateReportSearch(event: Event): void {
@@ -152,26 +198,68 @@ export class AdminPage {
     this.publicationSearch.set((event.target as HTMLInputElement).value);
   }
 
-  publicationStatus(materialId: string) {
-    const material =
-      this.publicationService.findById(materialId) ?? this.catalog.findById(materialId);
-    return material ? this.moderation.getPublicationStatus(material) : 'Oculta';
+  updateUserSearch(event: Event): void {
+    this.userSearch.set((event.target as HTMLInputElement).value);
   }
 
-  publicationStatusClass(materialId: string): string {
-    return `status-${this.publicationStatus(materialId).toLocaleLowerCase('es')}`;
+  backendStatusLabel(status: BackendPublicationStatus | string | undefined): string {
+    switch (status) {
+      case 'DISPONIBLE':
+        return 'Disponible';
+      case 'EN_NEGOCIACION':
+        return 'En negociación';
+      case 'SUSPENDIDO':
+        return 'Suspendida';
+      case 'RETIRADA':
+        return 'Retirada';
+      case 'TRANSFERIDO':
+        return 'Transferida';
+      default:
+        return status || 'Disponible';
+    }
+  }
+
+  backendStatusClass(status: BackendPublicationStatus | string | undefined): string {
+    switch (status) {
+      case 'DISPONIBLE':
+        return 'status-activa';
+      case 'EN_NEGOCIACION':
+        return 'status-en-revisión';
+      case 'SUSPENDIDO':
+        return 'status-pendiente';
+      case 'RETIRADA':
+        return 'status-eliminada';
+      case 'TRANSFERIDO':
+        return 'status-oculta';
+      default:
+        return 'status-oculta';
+    }
   }
 
   reportStatusClass(status: ReportStatus): string {
     return `status-${status.toLocaleLowerCase('es').replace(/\s+/g, '-')}`;
   }
 
-  userStatusClass(status: UserStatus): string {
-    return status === 'Activo' ? 'status-active' : 'status-suspended';
+  userStatusClass(estado: string): string {
+    if (estado === 'ACTIVO') return 'status-active';
+    if (estado === 'SUSPENDIDO') return 'status-suspended';
+    return 'status-oculta';
   }
 
-  showMaterial(materialId: string): void {
-    this.selectedMaterialId.set(materialId);
+  openLightbox(images: string[] | undefined, title: string, event?: Event): void {
+    event?.stopPropagation();
+    if (!images?.length) return;
+    this.lightboxImages.set(images);
+    this.lightboxTitle.set(title);
+  }
+
+  closeLightbox(): void {
+    this.lightboxImages.set([]);
+    this.lightboxTitle.set('');
+  }
+
+  showMaterial(material: MarketplaceMaterial): void {
+    this.selectedMaterial.set(material);
   }
 
   openReport(report: PublicationReport): void {
@@ -179,39 +267,84 @@ export class AdminPage {
     this.section.set('reports');
   }
 
-  reviewReport(report: PublicationReport): void {
-    this.openReport(report);
+  showUser(user: AdminUser): void {
+    this.selectedUser.set(user);
   }
 
-  suspendReportedPublication(report: PublicationReport): void {
-    const pubId = report.publicationId ?? Number(report.materialId);
-    if (!Number.isFinite(pubId) || pubId <= 0) {
-      this.moderation.hideReportedPublication(report.id);
-      this.notice.set(`Publicación ${report.materialId} suspendida y reporte atendido.`);
-      this.selectedReport.set(null);
-      return;
-    }
+  requestSuspendPublication(material: MarketplaceMaterial): void {
+    this.confirmation.set({
+      type: 'suspendPublication',
+      id: Number(material.id),
+      label: material.title,
+    });
+  }
 
+  requestRetirePublication(material: MarketplaceMaterial): void {
+    this.confirmation.set({
+      type: 'retirePublication',
+      id: Number(material.id),
+      label: material.title,
+    });
+  }
+
+  requestToggleUser(user: AdminUser): void {
+    this.confirmation.set({
+      type: 'toggleUser',
+      id: user.id,
+      label: user.email,
+      currentStatus: user.estado,
+    });
+  }
+
+  activatePublication(pubId: number | string): void {
+    const id = Number(pubId);
+    if (!Number.isFinite(id) || id <= 0 || this.busy()) return;
+    this.busy.set(true);
     this.moderation
-      .suspendPublicationByAdmin(pubId)
+      .activatePublicationByAdmin(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
+          this.busy.set(false);
+          this.notice.set(
+            `Publicación #${res.id} (“${res.titulo}”) reactivada en estado DISPONIBLE.`,
+          );
+          this.syncAfterMutation();
+          if (this.selectedMaterial()?.id === String(id)) {
+            this.selectedMaterial.set(this.moderation.findPublicationById(String(id)) ?? null);
+          }
+          if (this.selectedReport()?.publicationId === id) {
+            this.selectedReport.update((r) =>
+              r ? { ...r, publicationStatus: 'DISPONIBLE' } : null,
+            );
+          }
+        },
+        error: (err: HttpErrorResponse) => {
+          this.busy.set(false);
+          this.notice.set(
+            (err.error?.message as string | undefined) || 'No se pudo reactivar la publicación.',
+          );
+        },
+      });
+  }
+
+  suspendReportedPublication(report: PublicationReport): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.moderation
+      .suspendPublicationByAdmin(report.publicationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.busy.set(false);
           this.notice.set(
             `Publicación #${res.idPublicacion} suspendida (${res.estadoPublicacion}). Reportes atendidos: ${res.reportesAtendidos}.`,
           );
           this.selectedReport.set(null);
-          this.confirmation.set(null);
-          this.moderation
-            .loadAdminReports(true)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe();
-          this.publicationService
-            .getPublications({ page: 0, size: 50 })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe();
+          this.syncAfterMutation();
         },
         error: (err: HttpErrorResponse) => {
+          this.busy.set(false);
           this.notice.set(
             (err.error?.message as string | undefined) ||
               'No se pudo suspender la publicación reportada.',
@@ -220,137 +353,121 @@ export class AdminPage {
       });
   }
 
-  resolveReport(report: PublicationReport): void {
-    this.notice.set(
-      this.moderation.resolveReport(report.id)
-        ? `Reporte ${report.id} resuelto.`
-        : 'No se pudo actualizar este reporte.',
-    );
-    this.selectedReport.set(null);
-  }
-
-  discardReport(report: PublicationReport): void {
-    this.notice.set(
-      this.moderation.discardReport(report.id)
-        ? `Reporte ${report.id} descartado.`
-        : 'No se pudo descartar este reporte.',
-    );
-    this.selectedReport.set(null);
-  }
-
-  requestHideReported(report: PublicationReport): void {
-    this.suspendReportedPublication(report);
-  }
-
-  requestDeleteReported(report: PublicationReport): void {
-    this.suspendReportedPublication(report);
-  }
-
-  requestHidePublication(materialId: string): void {
-    const pubId = Number(materialId);
-    if (Number.isFinite(pubId) && pubId > 0) {
-      this.moderation
-        .suspendPublicationByAdmin(pubId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (res) => {
-            this.notice.set(`Publicación #${res.idPublicacion} suspendida en el servidor.`);
-            this.publicationService
-              .getPublications({ page: 0, size: 50 })
-              .pipe(takeUntilDestroyed(this.destroyRef))
-              .subscribe();
-          },
-        });
-      return;
-    }
-    this.confirmation.set({ type: 'hidePublication', id: materialId });
-  }
-
-  requestDelete(materialId: string): void {
-    this.confirmation.set({ type: 'delete', id: materialId });
-  }
-
-  requestSuspend(userId: string): void {
-    this.confirmation.set({ type: 'suspend', id: userId });
-  }
-
-  hidePublication(materialId: string): void {
-    this.notice.set(
-      this.moderation.moderatePublication(materialId, 'Oculta')
-        ? 'Publicación ocultada del marketplace.'
-        : 'No se pudo ocultar la publicación.',
-    );
-  }
-
-  restorePublication(materialId: string): void {
-    this.notice.set(
-      this.moderation.moderatePublication(materialId, 'Activa')
-        ? 'Publicación restaurada y visible en el marketplace.'
-        : 'No se pudo restaurar la publicación.',
-    );
+  dismissReport(report: PublicationReport): void {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.moderation
+      .dismissReportByAdmin(report.reportId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.busy.set(false);
+          this.notice.set(`Reporte ${report.id} desestimado correctamente.`);
+          this.selectedReport.set(null);
+          this.syncAfterMutation();
+        },
+        error: (err: HttpErrorResponse) => {
+          this.busy.set(false);
+          this.notice.set(
+            (err.error?.message as string | undefined) || 'No se pudo desestimar el reporte.',
+          );
+        },
+      });
   }
 
   confirmAction(): void {
     const pending = this.confirmation();
-    if (!pending) return;
-    const { type, id } = pending;
-    if (type === 'hide') {
-      this.notice.set(
-        this.moderation.hideReportedPublication(id)
-          ? 'La publicación se ocultó y el reporte quedó resuelto.'
-          : 'No se pudo ocultar la publicación reportada.',
-      );
-      this.selectedReport.set(null);
-    } else if (type === 'hidePublication') {
-      this.notice.set(
-        this.moderation.moderatePublication(id, 'Oculta')
-          ? 'Publicación ocultada del marketplace.'
-          : 'No se pudo ocultar la publicación.',
-      );
-    } else if (type === 'delete') {
-      this.notice.set(
-        this.moderation.moderatePublication(id, 'Eliminada')
-          ? 'Publicación retirada del marketplace; el registro histórico se conserva.'
-          : 'No se pudo eliminar la publicación.',
-      );
-    } else if (type === 'deleteReported') {
-      this.notice.set(
-        this.moderation.deleteReportedPublication(id)
-          ? `Publicación retirada y reporte ${id} resuelto.`
-          : 'No se pudo eliminar la publicación reportada.',
-      );
-      this.selectedReport.set(null);
+    if (!pending || this.busy()) return;
+
+    this.busy.set(true);
+    if (pending.type === 'suspendPublication') {
+      this.moderation
+        .suspendPublicationByAdmin(pending.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.selectedMaterial.set(null);
+            this.notice.set(
+              `Publicación #${res.idPublicacion} suspendida correctamente (${res.reportesAtendidos} reportes atendidos).`,
+            );
+            this.syncAfterMutation();
+          },
+          error: (err: HttpErrorResponse) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.notice.set(
+              (err.error?.message as string | undefined) || 'No se pudo suspender la publicación.',
+            );
+          },
+        });
+    } else if (pending.type === 'retirePublication') {
+      this.moderation
+        .retirePublicationByAdmin(pending.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.selectedMaterial.set(null);
+            this.notice.set(`Publicación #${res.id} retirada del catálogo público.`);
+            this.syncAfterMutation();
+          },
+          error: (err: HttpErrorResponse) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.notice.set(
+              (err.error?.message as string | undefined) || 'No se pudo retirar la publicación.',
+            );
+          },
+        });
     } else {
-      this.notice.set(
-        this.moderation.suspendUser(id)
-          ? 'Usuario suspendido.'
-          : 'No se puede suspender esta cuenta.',
-      );
+      this.moderation
+        .toggleUserStatusByAdmin(pending.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.selectedUser.set(null);
+            this.notice.set(
+              `Cuenta ${res.correoInstitucional} actualizada a estado ${res.estado}.`,
+            );
+            this.syncAfterMutation();
+          },
+          error: (err: HttpErrorResponse) => {
+            this.busy.set(false);
+            this.confirmation.set(null);
+            this.notice.set(
+              (err.error?.message as string | undefined) ||
+                'No se pudo actualizar el estado del usuario.',
+            );
+          },
+        });
     }
-    this.confirmation.set(null);
   }
 
   closeDialogs(): void {
     this.confirmation.set(null);
     this.selectedReport.set(null);
-    this.selectedMaterialId.set(null);
-    this.selectedUserId.set(null);
+    this.selectedMaterial.set(null);
+    this.selectedUser.set(null);
   }
 
-  showUser(userId: string): void {
-    this.selectedUserId.set(userId);
+  isProtectedAdmin(user: AdminUser): boolean {
+    const currentEmail = this.auth.currentUser()?.email?.toLowerCase();
+    return user.rol === 'ADMIN' || (Boolean(currentEmail) && user.email.toLowerCase() === currentEmail);
   }
 
-  reactivateUser(userId: string): void {
-    this.notice.set(
-      this.moderation.reactivateUser(userId)
-        ? 'Usuario reactivado.'
-        : 'No se pudo reactivar el usuario.',
-    );
+  truncate(text: string | null | undefined, max = 72): string {
+    if (!text) return '';
+    const trimmed = text.trim();
+    return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
   }
 
-  formatDate(timestamp: number): string {
-    if (timestamp < 100_000_000_000) return 'Reciente';
+  formatDate(timestamp: number | null | undefined): string {
+    if (!timestamp || timestamp < 100_000_000_000) return '—';
     return new Intl.DateTimeFormat('es-PE', {
       day: 'numeric',
       month: 'short',
@@ -358,11 +475,15 @@ export class AdminPage {
     }).format(timestamp);
   }
 
-  formatPublicationDate(timestamp: number, label: string): string {
-    return timestamp < 100_000_000_000 ? label : this.formatDate(timestamp);
+  formatIsoDateTime(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const parsed = Date.parse(iso);
+    if (Number.isNaN(parsed)) return '—';
+    return this.formatDateTime(parsed);
   }
 
-  formatDateTime(timestamp: number): string {
+  formatDateTime(timestamp: number | null | undefined): string {
+    if (!timestamp || timestamp < 100_000_000_000) return '—';
     return new Intl.DateTimeFormat('es-PE', {
       day: 'numeric',
       month: 'short',
@@ -370,5 +491,16 @@ export class AdminPage {
       hour: '2-digit',
       minute: '2-digit',
     }).format(timestamp);
+  }
+
+  private syncAfterMutation(): void {
+    this.moderation.loadAdminOverview().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminPublications().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminReports(true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.moderation.loadAdminUsers().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+    this.publicationService
+      .getPublications({ page: 0, size: 50 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 }

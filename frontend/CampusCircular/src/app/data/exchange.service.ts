@@ -12,7 +12,7 @@ export type ExchangeStatus =
   | 'Rechazado'
   | 'Cancelado'
   | 'Completado';
-export type ExchangeTab = 'received' | 'sent' | 'completed';
+export type ExchangeTab = 'received' | 'sent' | 'completed' | 'rejected';
 export type ExchangeRole = 'requester' | 'owner';
 export type BackendTransactionType = 'TRUEQUE' | 'DONACION' | 'VENTA_SOLIDARIA';
 export type BackendTransactionStatus =
@@ -54,6 +54,7 @@ export interface TransactionResponseDto {
   otpExpiraEn?: string | null;
   fechaCierre?: string | null;
   yaCalificada?: boolean;
+  motivoRechazo?: string | null;
 }
 
 export interface TransactionMessage {
@@ -112,6 +113,7 @@ export interface ExchangeRequest {
   referenceValueSoles?: number;
   otpExpiresAt?: string | null;
   alreadyRated?: boolean;
+  rejectionReason?: string;
   requesterConfirmed: boolean;
   ownerConfirmed: boolean;
   ratings: ExchangeRating[];
@@ -171,9 +173,11 @@ export class ExchangeService {
     );
   }
 
-  rejectTransaction(id: number | string): Observable<TransactionResponseDto> {
+  rejectTransaction(id: number | string, reason?: string): Observable<TransactionResponseDto> {
     const numericId = this.toNumericId(id);
-    return this.http.post<TransactionResponseDto>(`${this.baseUrl}/${numericId}/reject`, {}).pipe(
+    const trimmed = reason?.trim();
+    const body = trimmed ? { reason: trimmed } : {};
+    return this.http.post<TransactionResponseDto>(`${this.baseUrl}/${numericId}/reject`, body).pipe(
       tap((response) => this.upsertFromDto(response)),
     );
   }
@@ -278,10 +282,19 @@ export class ExchangeService {
     };
 
     if (tab === 'received') {
-      return requests.filter((request) => isOwner(request) && request.status !== 'Completado');
+      return requests.filter(
+        (request) =>
+          isOwner(request) && request.status !== 'Completado' && request.status !== 'Rechazado',
+      );
     }
     if (tab === 'sent') {
-      return requests.filter((request) => isRequester(request) && request.status !== 'Completado');
+      return requests.filter(
+        (request) =>
+          isRequester(request) && request.status !== 'Completado' && request.status !== 'Rechazado',
+      );
+    }
+    if (tab === 'rejected') {
+      return requests.filter((request) => request.status === 'Rechazado');
     }
     return requests.filter((request) => request.status === 'Completado');
   }
@@ -390,6 +403,7 @@ export class ExchangeService {
         : {}),
       otpExpiresAt: dto.otpExpiraEn ?? null,
       alreadyRated: Boolean(dto.yaCalificada),
+      ...(dto.motivoRechazo?.trim() ? { rejectionReason: dto.motivoRechazo.trim() } : {}),
       requesterConfirmed: status === 'Completado',
       ownerConfirmed: status === 'Completado',
       ratings: [],

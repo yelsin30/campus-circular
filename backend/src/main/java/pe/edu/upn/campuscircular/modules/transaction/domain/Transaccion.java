@@ -64,6 +64,9 @@ public class Transaccion {
     @Column(name = "fecha_cierre")
     private LocalDateTime fechaCierre;
 
+    @Column(name = "motivo_rechazo", length = 300)
+    private String motivoRechazo;
+
     public Transaccion() {}
 
     @PrePersist
@@ -150,5 +153,13 @@ public class Transaccion {
 
     public void setFechaCierre(LocalDateTime fechaCierre) {
         this.fechaCierre = fechaCierre;
+    }
+
+    public String getMotivoRechazo() {
+        return motivoRechazo;
+    }
+
+    public void setMotivoRechazo(String motivoRechazo) {
+        this.motivoRechazo = motivoRechazo;
     }
 }

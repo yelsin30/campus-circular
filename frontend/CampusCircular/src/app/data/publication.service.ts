@@ -12,7 +12,12 @@ import {
 
 export type BackendCondition = 'NUEVO' | 'SEMINUEVO' | 'BUENO' | 'ACEPTABLE' | 'SCRAP';
 export type BackendModality = 'TRUEQUE' | 'DONACION' | 'VENTA_SOLIDARIA';
-export type BackendPublicationStatus = 'DISPONIBLE' | 'EN_NEGOCIACION' | 'TRANSFERIDO' | 'SUSPENDIDO';
+export type BackendPublicationStatus =
+  | 'DISPONIBLE'
+  | 'EN_NEGOCIACION'
+  | 'TRANSFERIDO'
+  | 'SUSPENDIDO'
+  | 'RETIRADA';
 
 export interface PublicationResponseDto {
   id: number;
@@ -330,7 +335,12 @@ export class PublicationService {
       ratingCount: 1,
       offeredExamples: mode === 'Trueque' ? ['Material académico equivalente'] : [],
       ...(resolvedImages.length > 0 ? { images: resolvedImages } : {}),
-      publicationStatus: dto.estado === 'DISPONIBLE' ? 'Activa' : 'Oculta',
+      publicationStatus:
+        dto.estado === 'DISPONIBLE'
+          ? 'Activa'
+          : dto.estado === 'RETIRADA'
+            ? 'Eliminada'
+            : 'Oculta',
       ownerId: dto.usuarioId,
       backendModality: dto.modalidad,
       backendStatus: dto.estado,
