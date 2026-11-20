@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { afterNextRender, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ImpactMetricsService } from '../../data/impact-metrics.service';
 
@@ -8,7 +8,7 @@ import { ImpactMetricsService } from '../../data/impact-metrics.service';
   templateUrl: './impact.html',
   styleUrl: './impact.scss',
 })
-export class ImpactPage implements OnInit {
+export class ImpactPage {
   private readonly impactService = inject(ImpactMetricsService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -17,11 +17,13 @@ export class ImpactPage implements OnInit {
     .format(new Date())
     .replace('.', '');
 
-  ngOnInit(): void {
-    this.impactService
-      .loadImpactMetrics()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+  constructor() {
+    afterNextRender(() => {
+      this.impactService
+        .loadImpactMetrics()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe();
+    });
   }
 
   get monthlyMax(): number {

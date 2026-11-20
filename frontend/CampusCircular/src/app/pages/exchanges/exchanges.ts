@@ -1,7 +1,17 @@
+import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  PLATFORM_ID,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
 import { ExchangeRequest, ExchangeService, ExchangeTab } from '../../data/exchange.service';
 import { MarketplaceMaterial } from '../../data/material-catalog';
 import { MaterialCatalogService } from '../../data/material-catalog.service';
@@ -16,11 +26,12 @@ import { ExchangeSidePanel } from './exchange-side-panel/exchange-side-panel';
   templateUrl: './exchanges.html',
   styleUrl: './exchanges.scss',
 })
-export class ExchangesPage implements OnInit {
+export class ExchangesPage {
   readonly exchangeService = inject(ExchangeService);
   private readonly publicationService = inject(PublicationService);
   private readonly catalog = inject(MaterialCatalogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly platformId = inject(PLATFORM_ID);
 
   readonly tabs: { id: ExchangeTab; label: string }[] = [
     { id: 'received', label: 'Recibidos' },
@@ -28,73 +39,57 @@ export class ExchangesPage implements OnInit {
     { id: 'completed', label: 'Completados' },
   ];
 
-  activeTab: ExchangeTab = 'received';
-  selectedRequestId: string | null = null;
-  agreementDetailsId: string | null = null;
-  actionMessage = '';
-  loading = false;
+  readonly activeTab = signal<ExchangeTab>('received');
+  readonly selectedRequestId = signal<string | null>(null);
+  readonly agreementDetailsId = signal<string | null>(null);
+  readonly actionMessage = signal('');
+  readonly loading = signal(false);
+
+  readonly requests = computed(() => this.exchangeService.getRequests(this.activeTab()));
+  readonly receivedCount = computed(() => this.exchangeService.getRequests('received').length);
+  readonly sentCount = computed(() => this.exchangeService.getRequests('sent').length);
+  readonly completedCount = computed(() => this.exchangeService.getRequests('completed').length);
+  readonly rejectedSentCount = computed(
+    () =>
+      this.exchangeService
+        .getRequests('sent')
+        .filter((request) => request.status === 'Rechazado').length,
+  );
+
+  readonly selectedRequest = computed(() => {
+    const id = this.selectedRequestId();
+    return id ? this.exchangeService.findRequest(id) : undefined;
+  });
+
+  readonly selectedMaterial = computed(() => {
+    const req = this.selectedRequest();
+    return req ? this.materialFor(req) : undefined;
+  });
+
+  readonly selectedCounterparty = computed(() => {
+    const req = this.selectedRequest();
+    if (!req) return '';
+    return this.exchangeService.isUserOwner(req) ? req.requester : req.owner;
+  });
+
+  constructor() {
+    afterNextRender(() => {
+      this.loadTransactions();
+    });
+  }
 
   get currentUser(): string {
     return this.exchangeService.currentUser;
   }
 
-  get requests(): ExchangeRequest[] {
-    return this.exchangeService.getRequests(this.activeTab);
-  }
-
-  get receivedCount(): number {
-    return this.exchangeService.getRequests('received').length;
-  }
-
-  get sentCount(): number {
-    return this.exchangeService.getRequests('sent').length;
-  }
-
-  get completedCount(): number {
-    return this.exchangeService.getRequests('completed').length;
-  }
-
-  get selectedRequest(): ExchangeRequest | undefined {
-    return this.selectedRequestId
-      ? this.exchangeService.findRequest(this.selectedRequestId)
-      : undefined;
-  }
-
-  get selectedMaterial(): MarketplaceMaterial | undefined {
-    return this.selectedRequest ? this.materialFor(this.selectedRequest) : undefined;
-  }
-
-  get selectedCounterparty(): string {
-    if (!this.selectedRequest) return '';
-    return this.exchangeService.isUserOwner(this.selectedRequest)
-      ? this.selectedRequest.requester
-      : this.selectedRequest.owner;
-  }
-
-  ngOnInit(): void {
-    this.loading = true;
-    this.publicationService
-      .getPublications({ page: 0, size: 50 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
-
-    this.exchangeService
-      .loadMyTransactions()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.loading = false;
-        this.ensureSelectedRequest();
-      });
-  }
-
   selectTab(tab: ExchangeTab): void {
-    this.activeTab = tab;
-    this.actionMessage = '';
+    this.activeTab.set(tab);
+    this.actionMessage.set('');
     this.ensureSelectedRequest();
   }
 
   selectRequest(request: ExchangeRequest): void {
-    this.selectedRequestId = request.id;
+    this.selectedRequestId.set(request.id);
   }
 
   materialFor(request: ExchangeRequest): MarketplaceMaterial {
@@ -130,39 +125,41 @@ export class ExchangesPage implements OnInit {
   }
 
   accept(request: ExchangeRequest): void {
-    this.actionMessage = '';
+    this.actionMessage.set('');
     this.exchangeService
       .acceptTransaction(request.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.actionMessage =
-            'Solicitud aceptada. La transacción pasó a EN_NEGOCIACION y ya pueden validar la entrega con código OTP.';
-          this.selectedRequestId = request.id;
+          this.actionMessage.set(
+            'Solicitud aceptada. La transacción pasó a EN_NEGOCIACION y ya pueden coordinar por chat y validar la entrega con código OTP.',
+          );
+          this.selectedRequestId.set(request.id);
         },
         error: (err: HttpErrorResponse) => {
-          this.actionMessage =
-            (err.error?.message as string | undefined) ||
-            'No se pudo aceptar esta solicitud.';
+          this.actionMessage.set(
+            (err.error?.message as string | undefined) || 'No se pudo aceptar esta solicitud.',
+          );
         },
       });
   }
 
   reject(request: ExchangeRequest): void {
-    this.actionMessage = '';
+    this.actionMessage.set('');
     this.exchangeService
       .rejectTransaction(request.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.actionMessage =
-            'Solicitud rechazada. Las publicaciones involucradas siguen disponibles.';
-          this.selectedRequestId = request.id;
+          this.actionMessage.set(
+            'Solicitud rechazada. El solicitante verá el estado "Rechazado" y las publicaciones siguen disponibles.',
+          );
+          this.selectedRequestId.set(request.id);
         },
         error: (err: HttpErrorResponse) => {
-          this.actionMessage =
-            (err.error?.message as string | undefined) ||
-            'No se pudo rechazar esta solicitud.';
+          this.actionMessage.set(
+            (err.error?.message as string | undefined) || 'No se pudo rechazar esta solicitud.',
+          );
         },
       });
   }
@@ -185,7 +182,7 @@ export class ExchangesPage implements OnInit {
   }
 
   showAgreement(request: ExchangeRequest): void {
-    this.agreementDetailsId = this.agreementDetailsId === request.id ? null : request.id;
+    this.agreementDetailsId.update((current) => (current === request.id ? null : request.id));
   }
 
   alreadyRated(request: ExchangeRequest): boolean {
@@ -197,25 +194,46 @@ export class ExchangesPage implements OnInit {
 
   onDeliveryConfirmed(completed: boolean): void {
     if (!completed) return;
-    this.actionMessage = 'Entrega presencial confirmada con éxito. Ahora puedes calificar al estudiante.';
-    this.activeTab = 'completed';
+    this.actionMessage.set(
+      'Entrega presencial confirmada con éxito. Ahora puedes calificar al estudiante.',
+    );
+    this.activeTab.set('completed');
     const completedList = this.exchangeService.getRequests('completed');
-    if (
-      !this.selectedRequestId ||
-      !completedList.some((item) => item.id === this.selectedRequestId)
-    ) {
-      this.selectedRequestId = completedList[0]?.id ?? null;
+    const currentId = this.selectedRequestId();
+    if (!currentId || !completedList.some((item) => item.id === currentId)) {
+      this.selectedRequestId.set(completedList[0]?.id ?? null);
     }
   }
 
+  private loadTransactions(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    this.loading.set(true);
+    this.publicationService
+      .getPublications({ page: 0, size: 50 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+
+    this.exchangeService
+      .loadMyTransactions()
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.loading.set(false)),
+      )
+      .subscribe(() => {
+        this.ensureSelectedRequest();
+      });
+  }
+
   private ensureSelectedRequest(): void {
-    const list = this.exchangeService.getRequests(this.activeTab);
-    if (!list.some((request) => request.id === this.selectedRequestId)) {
+    const list = this.exchangeService.getRequests(this.activeTab());
+    const currentId = this.selectedRequestId();
+    if (!list.some((request) => request.id === currentId)) {
       const preferred =
-        this.activeTab === 'completed'
+        this.activeTab() === 'completed'
           ? list[0]
           : list.find((request) => request.status === 'En negociación') ?? list[0];
-      this.selectedRequestId = preferred?.id ?? null;
+      this.selectedRequestId.set(preferred?.id ?? null);
     }
   }
 }

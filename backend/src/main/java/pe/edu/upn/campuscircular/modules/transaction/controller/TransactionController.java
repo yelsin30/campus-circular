@@ -15,9 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import pe.edu.upn.campuscircular.modules.transaction.dto.ConfirmDeliveryRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateRatingRequest;
+import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionMessageRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.DeliveryCodeResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.RatingResponse;
+import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionMessageResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionResponse;
 import pe.edu.upn.campuscircular.modules.transaction.service.TransactionService;
 
@@ -83,5 +85,22 @@ public class TransactionController {
             Authentication authentication) {
         return ResponseEntity.status(201).body(
             transactionService.rate(authentication.getName(), id, request));
+    }
+
+    @GetMapping("/{id}/messages")
+    public ResponseEntity<List<TransactionMessageResponse>> getMessages(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+            transactionService.getMessages(authentication.getName(), id));
+    }
+
+    @PostMapping("/{id}/messages")
+    public ResponseEntity<TransactionMessageResponse> sendMessage(
+            @PathVariable Long id,
+            @Valid @RequestBody CreateTransactionMessageRequest request,
+            Authentication authentication) {
+        return ResponseEntity.status(201).body(
+            transactionService.sendMessage(authentication.getName(), id, request));
     }
 }

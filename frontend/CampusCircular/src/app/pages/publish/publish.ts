@@ -1,11 +1,11 @@
 import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, inject, PLATFORM_ID } from '@angular/core';
+import { Component, DestroyRef, inject, PLATFORM_ID, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
 import { ExchangeMode, MaterialCategory, MarketplaceMaterial } from '../../data/material-catalog';
-import { ModerationService } from '../../data/moderation.service';
 import { CreatePublicationRequestDto, PublicationService } from '../../data/publication.service';
 import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 
@@ -19,7 +19,6 @@ import { ImagePreview, PhotoUpload } from './photo-upload/photo-upload';
 export class PublishPage {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly publicationService = inject(PublicationService);
-  private readonly moderation = inject(ModerationService);
   private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
@@ -28,9 +27,10 @@ export class PublishPage {
     'Ingeniería de Sistemas',
     'Ingeniería Industrial',
     'Arquitectura',
+    'Administración',
     'Derecho',
     'Psicología',
-    'Administración',
+    'Comunicaciones',
   ];
   readonly categories: MaterialCategory[] = ['Libros', 'Apuntes', 'Equipos', 'Materiales', 'Otros'];
   readonly conditions = ['Nuevo', 'Seminuevo', 'En buen estado', 'Aceptable', 'Repuestos / Scrap (RAEE)'];
@@ -46,12 +46,12 @@ export class PublishPage {
     price: [''],
   });
 
-  previews: ImagePreview[] = [];
-  photoErrors: string[] = [];
-  submitted = false;
-  submitting = false;
-  publishMessage = '';
-  publishedMaterial: MarketplaceMaterial | null = null;
+  readonly previews = signal<ImagePreview[]>([]);
+  readonly photoErrors = signal<string[]>([]);
+  readonly submitted = signal(false);
+  readonly submitting = signal(false);
+  readonly publishMessage = signal('');
+  readonly publishedMaterial = signal<MarketplaceMaterial | null>(null);
 
   constructor() {
     this.form.controls.mode.valueChanges
@@ -64,16 +64,20 @@ export class PublishPage {
   }
 
   get hasUnsavedChanges(): boolean {
-    return this.form.dirty || this.previews.length > 0;
+    return this.form.dirty || this.previews().length > 0;
   }
 
   fieldInvalid(field: keyof typeof this.form.controls): boolean {
     const control = this.form.controls[field];
-    return control.invalid && (control.touched || this.submitted);
+    return control.invalid && (control.touched || this.submitted());
   }
 
   updatePreviews(previews: ImagePreview[]): void {
-    this.previews = previews;
+    this.previews.set(previews);
+  }
+
+  updatePhotoErrors(errors: string[]): void {
+    this.photoErrors.set(errors);
   }
 
   cancel(): void {
@@ -89,17 +93,16 @@ export class PublishPage {
   }
 
   publish(): void {
-    this.submitted = true;
-    this.publishMessage = '';
+    if (this.submitting()) return;
+
+    this.submitted.set(true);
+    this.publishMessage.set('');
     this.form.markAllAsTouched();
 
-    if (this.moderation.isUserSuspended('María Pérez')) {
-      this.publishMessage = 'La cuenta está suspendida y no puede publicar materiales.';
-      return;
-    }
-
-    if (this.form.invalid || this.photoErrors.length > 0) {
-      this.publishMessage = 'Revisa los campos obligatorios y corrige los archivos indicados antes de publicar.';
+    if (this.form.invalid || this.photoErrors().length > 0) {
+      this.publishMessage.set(
+        'Revisa los campos obligatorios y corrige los archivos indicados antes de publicar.',
+      );
       return;
     }
 
@@ -110,6 +113,7 @@ export class PublishPage {
     const modalidad = this.publicationService.toBackendModality(mode);
     const condicion = this.publicationService.toBackendCondition(value.condition);
     const precioSolidario = modalidad === 'VENTA_SOLIDARIA' ? Number(value.price) : null;
+    const imageUrls = this.previews().map((preview) => preview.dataUrl);
 
     const payload: CreatePublicationRequestDto = {
       categoryId,
@@ -118,40 +122,50 @@ export class PublishPage {
       condicion,
       modalidad,
       precioSolidario,
+      carrera: value.career || null,
+      imagenUrl: imageUrls[0] ?? null,
+      imagenes: imageUrls,
     };
 
-    this.submitting = true;
-    this.publicationService.createPublication(payload).subscribe({
-      next: () => {
-        this.submitting = false;
-        this.previews = [];
-        this.photoErrors = [];
-        this.form.reset({
-          title: '',
-          description: '',
-          career: '',
-          category: '',
-          condition: '',
-          mode: 'Trueque',
-          price: '',
-        });
-        this.form.markAsPristine();
-        this.form.markAsUntouched();
-        this.submitted = false;
-        void this.router.navigateByUrl('/inicio');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.submitting = false;
-        const backendMsg = err.error?.message as string | undefined;
-        if (err.status === 401 || err.status === 403) {
-          this.publishMessage = backendMsg || 'Debes iniciar sesión con una cuenta activa para publicar.';
-        } else if (err.status === 400) {
-          this.publishMessage = backendMsg || 'Datos inválidos. Verifica que el precio solidario no supere S/ 80.00.';
-        } else {
-          this.publishMessage = backendMsg || 'No se pudo registrar la publicación en el servidor.';
-        }
-      },
-    });
+    this.submitting.set(true);
+    this.publicationService
+      .createPublication(payload)
+      .pipe(finalize(() => this.submitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.previews.set([]);
+          this.photoErrors.set([]);
+          this.form.reset({
+            title: '',
+            description: '',
+            career: '',
+            category: '',
+            condition: '',
+            mode: 'Trueque',
+            price: '',
+          });
+          this.form.markAsPristine();
+          this.form.markAsUntouched();
+          this.submitted.set(false);
+          void this.router.navigateByUrl('/inicio');
+        },
+        error: (err: HttpErrorResponse) => {
+          const backendMsg = err.error?.message as string | undefined;
+          if (err.status === 401 || err.status === 403) {
+            this.publishMessage.set(
+              backendMsg || 'Debes iniciar sesión con una cuenta activa para publicar.',
+            );
+          } else if (err.status === 400) {
+            this.publishMessage.set(
+              backendMsg || 'Datos inválidos. Verifica que el precio solidario no supere S/ 80.00.',
+            );
+          } else {
+            this.publishMessage.set(
+              backendMsg || 'No se pudo registrar la publicación en el servidor.',
+            );
+          }
+        },
+      });
   }
 
   private setPriceValidation(mode: string): void {

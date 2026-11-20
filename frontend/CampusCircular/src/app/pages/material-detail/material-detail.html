@@ -1,4 +1,4 @@
-@if (material; as item) {
+@if (material(); as item) {
   <div class="detail-page">
     <nav class="breadcrumbs" aria-label="Ruta de navegación">
       <a routerLink="/inicio">Inicio</a><span aria-hidden="true">›</span>
@@ -7,51 +7,97 @@
     </nav>
 
     <main class="detail-grid">
-      <app-material-gallery [art]="item.art" [background]="item.background" [images]="item.images ?? []" [activeView]="activeGalleryView" (viewSelected)="selectGalleryView($event)" />
+      <app-material-gallery [art]="item.art" [background]="item.background" [images]="item.images ?? []" [activeView]="activeGalleryView()" (viewSelected)="selectGalleryView($event)" />
 
-      <app-material-information [material]="item" [isSaved]="isSaved" [shareMessage]="shareMessage" (saveToggled)="toggleSaved()" (requestOpened)="openRequest()" (reportOpened)="openReport()" (shareRequested)="shareMaterial()" />
+      <app-material-information [material]="item" [isSaved]="isSaved()" [shareMessage]="shareMessage()" (saveToggled)="toggleSaved()" (requestOpened)="openRequest()" (reportOpened)="openReport()" (shareRequested)="shareMaterial()" />
     </main>
   </div>
 
-  @if (activeModal) {
+  @if (activeModal(); as modal) {
     <div class="modal-backdrop" (click)="closeModal()">
-      <section class="dialog" role="dialog" aria-modal="true" [attr.aria-labelledby]="activeModal === 'request' ? 'request-dialog-title' : 'report-dialog-title'" (click)="$event.stopPropagation()">
+      <section class="dialog" role="dialog" aria-modal="true" [attr.aria-labelledby]="modal === 'request' ? 'request-dialog-title' : 'report-dialog-title'" (click)="$event.stopPropagation()">
         <button type="button" class="dialog-close" aria-label="Cerrar ventana" (click)="closeModal()">×</button>
-        @if (modalConfirmation) {
-          <div class="confirmation-view"><div class="confirmation-icon" aria-hidden="true">{{ activeModal === 'request' && !requestCreated || activeModal === 'report' && !reportCreated ? '!' : '✓' }}</div><h2>{{ activeModal === 'request' ? (requestCreated ? 'Solicitud lista' : 'No se pudo crear la solicitud') : (reportCreated ? 'Reporte recibido' : 'Reporte ya registrado') }}</h2><p>{{ modalConfirmation }}</p>@if (requestCreated) { <a class="request-button" routerLink="/intercambios" (click)="closeModal()">Ver mis intercambios</a> } @else { <button type="button" class="request-button" (click)="closeModal()">Entendido</button> }</div>
-        } @else if (activeModal === 'request') {
+        @if (modalConfirmation()) {
+          <div class="confirmation-view">
+            <div class="confirmation-icon" aria-hidden="true">{{ (modal === 'request' && !requestCreated()) || (modal === 'report' && !reportCreated()) ? '!' : '✓' }}</div>
+            <h2>{{ modal === 'request' ? (requestCreated() ? 'Solicitud enviada' : 'No se pudo crear la solicitud') : (reportCreated() ? 'Reporte recibido' : 'Reporte ya registrado') }}</h2>
+            <p>{{ modalConfirmation() }}</p>
+            @if (requestCreated()) {
+              <a class="request-button" routerLink="/intercambios" (click)="closeModal()">Ir a Mis intercambios</a>
+            } @else {
+              <button type="button" class="request-button" (click)="closeModal()">Entendido</button>
+            }
+          </div>
+        } @else if (modal === 'request') {
           <h2 id="request-dialog-title">Solicitar material</h2>
-          <p class="dialog-intro">Revisa los detalles antes de enviar tu solicitud de intercambio.</p>
-          <div class="requested-item"><span class="requested-art" [style.backgroundColor]="item.background"><app-material-artwork [art]="item.art" /></span><span><strong>{{ item.title }}</strong><small>{{ item.category }} · {{ item.condition }}</small></span></div>
-          <div class="modal-mode"><span>Modalidad permitida</span><strong>{{ item.mode }}@if (item.price !== undefined && item.mode === 'Precio solidario') { · S/ {{ item.price }}}</strong></div>
+          <p class="dialog-intro">Revisa los detalles y envía tu propuesta para coordinar la entrega dentro del campus UPN.</p>
+          <div class="requested-item">
+            <span class="requested-art" [style.backgroundColor]="item.background">
+              @if (item.images?.length) {
+                <img [src]="item.images![0]" [alt]="item.title" />
+              } @else {
+                <app-material-artwork [art]="item.art" />
+              }
+            </span>
+            <span><strong>{{ item.title }}</strong><small>{{ item.category }} · {{ item.condition }}</small></span>
+          </div>
+          <div class="modal-mode">
+            <span>Modalidad permitida</span>
+            <strong>{{ item.mode }}@if (item.price !== undefined && item.mode === 'Precio solidario') { · S/ {{ item.price }}}</strong>
+          </div>
           @if (item.mode === 'Trueque') {
-            <label class="dialog-label" for="offered-material">Material que ofreces</label>
-            <select id="offered-material" class="dialog-control" [value]="offeredMaterial" (change)="updateOfferedMaterial($event)">
-              @for (ownPub of ownTradePublications; track ownPub.id) { <option [value]="ownPub.id">{{ ownPub.title }} (#{{ ownPub.id }})</option> }
-              @for (example of item.offeredExamples; track example) { <option [value]="example">{{ example }}</option> }
-              <option value="Otro material">Otro material</option>
-            </select>
-            @if (offeredMaterial === 'Otro material') { <input class="dialog-control extra-offer" type="text" placeholder="ID de tu publicación ofrecida (ej. 1)" [value]="otherOfferedMaterial" (input)="updateOtherOfferedMaterial($event)" /> }
+            <label class="dialog-label" for="offered-material">Material que ofreces a cambio</label>
+            @if (ownTradePublications().length > 0) {
+              <select id="offered-material" class="dialog-control" [value]="offeredMaterial()" (change)="updateOfferedMaterial($event)">
+                @for (ownPub of ownTradePublications(); track ownPub.id) {
+                  <option [value]="ownPub.id">{{ ownPub.title }} (#{{ ownPub.id }})</option>
+                }
+                <option value="Otro material">Ingresar ID de publicación manualmente</option>
+              </select>
+              @if (offeredMaterial() === 'Otro material') {
+                <input class="dialog-control extra-offer" type="text" placeholder="ID de tu publicación ofrecida (ej. 4)" [value]="otherOfferedMaterial()" (input)="updateOtherOfferedMaterial($event)" />
+              }
+            } @else {
+              <p class="donation-note">Aún no tienes una publicación propia disponible en modalidad <strong>Trueque</strong>. <a routerLink="/publicar" (click)="closeModal()">Publica un material aquí</a> para ofrecerlo a cambio.</p>
+            }
           } @else if (item.mode === 'Donación') {
-            <p class="donation-note">Este material se ofrece como donación. Puedes dejar un mensaje opcional para el propietario.</p>
+            <p class="donation-note">Este material se ofrece como <strong>Donación</strong> (no requiere ofrecer otro artículo). Escribe un mensaje inicial para coordinar punto y hora de entrega en el campus UPN.</p>
           } @else {
-            <p class="donation-note">El monto establecido para esta publicación es <strong>S/ {{ item.price }}</strong>.</p>
+            <p class="donation-note">Modalidad <strong>Venta solidaria (S/ {{ item.price }})</strong>. No se requiere pasarela de pagos: envía tu solicitud y coordina el encuentro presencial dentro del campus UPN mediante el chat interno.</p>
           }
-          <label class="dialog-label" for="request-message">Mensaje (opcional)</label>
-          <textarea id="request-message" class="dialog-control dialog-textarea" placeholder="Escribe un mensaje para {{ item.owner }}" [value]="requestMessage" (input)="updateRequestMessage($event)"></textarea>
-          <div class="dialog-actions"><button type="button" class="cancel-button" (click)="closeModal()">Cancelar</button><button type="button" class="request-button" (click)="submitRequest()">Enviar solicitud</button></div>
+          <label class="dialog-label" for="request-message">Mensaje inicial de acuerdo {{ item.mode === 'Trueque' ? '(opcional)' : '(recomendado)' }}</label>
+          <textarea id="request-message" class="dialog-control dialog-textarea" placeholder="Ej. Hola, ¿podemos coordinar la entrega mañana a las 4:00 p.m. frente a biblioteca?" [value]="requestMessage()" (input)="updateRequestMessage($event)"></textarea>
+          <div class="dialog-actions">
+            <button type="button" class="cancel-button" (click)="closeModal()">Cancelar</button>
+            <button type="button" class="request-button" [disabled]="isSubmittingRequest()" (click)="submitRequest()">
+              {{ isSubmittingRequest() ? 'Enviando...' : 'Enviar solicitud' }}
+            </button>
+          </div>
         } @else {
           <h2 id="report-dialog-title">Reportar publicación</h2>
           <p class="dialog-intro">Cuéntanos por qué esta publicación debería revisarse.</p>
           <label class="dialog-label" for="report-reason">Motivo del reporte</label>
-          <select id="report-reason" class="dialog-control" [value]="reportReason" (change)="updateReportReason($event)"><option value="Contenido inapropiado">Contenido inapropiado</option><option value="Precio fuera de tope solidario">Precio fuera de tope solidario</option><option value="Material no académico">Material no académico</option><option value="Información falsa">Información falsa</option><option value="Otro">Otro</option></select>
+          <select id="report-reason" class="dialog-control" [value]="reportReason()" (change)="updateReportReason($event)">
+            <option value="Contenido inapropiado">Contenido inapropiado</option>
+            <option value="Precio fuera de tope solidario">Precio fuera de tope solidario</option>
+            <option value="Material no académico">Material no académico</option>
+            <option value="Información falsa">Información falsa</option>
+            <option value="Otro">Otro</option>
+          </select>
           <label class="dialog-label" for="report-details">Detalles (opcional)</label>
-          <textarea id="report-details" class="dialog-control dialog-textarea" placeholder="Agrega información que ayude a entender el reporte" [value]="reportDetails" (input)="updateReportDetails($event)"></textarea>
-          <div class="dialog-actions"><button type="button" class="cancel-button" (click)="closeModal()">Cancelar</button><button type="button" class="request-button" (click)="submitReport()">Enviar reporte</button></div>
+          <textarea id="report-details" class="dialog-control dialog-textarea" placeholder="Agrega información que ayude a entender el reporte" [value]="reportDetails()" (input)="updateReportDetails($event)"></textarea>
+          <div class="dialog-actions">
+            <button type="button" class="cancel-button" (click)="closeModal()">Cancelar</button>
+            <button type="button" class="request-button" [disabled]="isSubmittingReport()" (click)="submitReport()">
+              {{ isSubmittingReport() ? 'Enviando...' : 'Enviar reporte' }}
+            </button>
+          </div>
         }
       </section>
     </div>
   }
+} @else if (loadingMaterial()) {
+  <main class="not-found"><div class="not-found-card"><h1>Cargando material...</h1><p>Obteniendo los detalles de la publicación desde el servidor.</p></div></main>
 } @else {
   <main class="not-found"><div class="not-found-card"><span class="not-found-mark" aria-hidden="true">?</span><h1>Material no encontrado</h1><p>El artículo que buscas no existe o ya no está disponible.</p><a routerLink="/inicio">Volver al inicio</a></div></main>
 }

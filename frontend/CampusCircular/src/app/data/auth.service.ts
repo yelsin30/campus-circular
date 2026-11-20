@@ -67,10 +67,16 @@ export class AuthService {
 
   readonly accessToken = this.tokenSignal.asReadonly();
   readonly currentUser = this.userSignal.asReadonly();
-  readonly isAuthenticated = computed(() => Boolean(this.tokenSignal()));
+  readonly isAuthenticated = computed(() => this.isTokenValid(this.tokenSignal()));
 
   register(payload: RegisterRequest): Observable<RegistrationResponse> {
     return this.http.post<RegistrationResponse>(`${this.baseUrl}/register`, payload);
+  }
+
+  resendCode(email: string): Observable<RegistrationResponse> {
+    return this.http.post<RegistrationResponse>(`${this.baseUrl}/resend-code`, {
+      email: email.trim().toLowerCase(),
+    });
   }
 
   verifyToken(payload: VerifyRequest): Observable<VerificationResponse> {
@@ -89,12 +95,63 @@ export class AuthService {
     );
   }
 
+  hasValidSession(): boolean {
+    if (!isPlatformBrowser(this.platformId)) {
+      return false;
+    }
+
+    const storedToken = this.readStoredToken();
+    if (!storedToken) {
+      if (this.tokenSignal()) {
+        this.logout();
+      }
+      return false;
+    }
+
+    if (!this.isTokenValid(storedToken)) {
+      this.logout();
+      return false;
+    }
+
+    if (this.tokenSignal() !== storedToken) {
+      this.tokenSignal.set(storedToken);
+      this.userSignal.set(this.readStoredUser());
+    }
+    return true;
+  }
+
   logout(): void {
     this.tokenSignal.set(null);
     this.userSignal.set(null);
     if (isPlatformBrowser(this.platformId)) {
       globalThis.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
       globalThis.localStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }
+
+  private isTokenValid(token: string | null): boolean {
+    if (!token || !token.trim()) {
+      return false;
+    }
+
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return true;
+    }
+
+    try {
+      const normalizedPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const paddedPayload = normalizedPayload.padEnd(
+        normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+        '=',
+      );
+      const decoded = JSON.parse(globalThis.atob(paddedPayload)) as { exp?: number };
+      if (typeof decoded.exp === 'number') {
+        return decoded.exp * 1000 > Date.now();
+      }
+      return true;
+    } catch {
+      return false;
     }
   }
 

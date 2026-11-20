@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../data/auth.service';
 
 @Component({
@@ -11,6 +11,7 @@ import { AuthService } from '../../data/auth.service';
 })
 export class Navbar {
   readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   get isAdmin(): boolean {
     const role = (this.auth.currentUser()?.rol ?? '').toUpperCase();
@@ -28,5 +29,10 @@ export class Navbar {
     const user = this.auth.currentUser();
     if (user?.email) return user.email.slice(0, 2).toUpperCase();
     return 'UP';
+  }
+
+  logout(): void {
+    this.auth.logout();
+    void this.router.navigateByUrl('/login');
   }
 }

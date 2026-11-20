@@ -38,6 +38,10 @@
   width: 120%;
 }
 
+.material-visual.has-photo::after {
+  display: none;
+}
+
 .visual-link {
   align-items: center;
   display: flex;
@@ -46,6 +50,18 @@
   position: relative;
   width: 100%;
   z-index: 1;
+}
+
+.material-photo {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 200ms ease;
+  width: 100%;
+}
+
+.material-card:hover .material-photo {
+  transform: scale(1.03);
 }
 
 .product-art {

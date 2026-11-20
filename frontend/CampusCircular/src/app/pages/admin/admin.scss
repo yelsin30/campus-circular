@@ -16,7 +16,7 @@
 .admin-main { min-width:0; }
 .admin-topbar { align-items:center; background:#fff; border-bottom:1px solid #e7eaee; display:flex; gap:.85rem; height:62px; padding:0 clamp(1rem,3vw,2rem); }
 .topbar-spacer { flex:1; }
-.demo-chip { background:#fff3c9; border-radius:1rem; color:#816200; font-size:.62rem; font-weight:750; padding:.38rem .6rem; }
+.status-chip { background:#fff3c9; border-radius:1rem; color:#816200; font-size:.62rem; font-weight:750; padding:.38rem .6rem; }
 .notification-button,.mobile-menu-button { align-items:center; background:none; border:0; color:#596473; cursor:pointer; display:flex; height:34px; justify-content:center; width:34px; }
 .notification-button svg,.mobile-menu-button svg { fill:none; height:18px; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.6; width:18px; }
 .mobile-menu-button { display:none; }
@@ -59,7 +59,7 @@
 .quick-icon { align-items:center; background:#fff4cd; border-radius:.5rem; color:#967300; display:flex; flex:0 0 30px; height:30px; justify-content:center; }
 .quick-panel>button>span:nth-child(2) { display:flex; flex:1; flex-direction:column; gap:.2rem; }
 .quick-panel strong { color:#333b46; font-size:.67rem; }.quick-panel small { color:#858e9a; font-size:.59rem; }.quick-panel b { color:#8b94a0; font-size:1rem; }
-.demo-disclaimer,.security-note { color:#89919d; font-size:.62rem; line-height:1.5; margin:.7rem 0 0; }
+.security-note { color:#89919d; font-size:.62rem; line-height:1.5; margin:.7rem 0 0; }
 .table-panel { overflow:hidden; }
 .table-toolbar { align-items:center; display:flex; gap:1rem; justify-content:space-between; padding:.85rem 1rem; }
 .filter-tabs { align-items:center; display:flex; gap:.25rem; }
@@ -120,7 +120,7 @@ td:first-child,th:first-child { padding-left:1rem; }
   .admin-topbar { height:56px; padding:0 .75rem; }
   .mobile-menu-button { display:flex; }
   .topbar-spacer { flex:1; }
-  .demo-chip { font-size:.55rem; }
+  .status-chip { font-size:.55rem; }
   .admin-profile { gap:.3rem; padding-right:.4rem; }.admin-profile strong { font-size:.6rem; }
   .admin-content { padding:1rem .75rem 5rem; }
   .content-heading { flex-direction:column; gap:.6rem; }

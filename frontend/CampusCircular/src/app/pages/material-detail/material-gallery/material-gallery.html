@@ -1,20 +1,22 @@
 <section class="gallery-panel" aria-label="Galería del material">
   <div class="main-image" [style.backgroundColor]="background">
-    @if (images[activeView]) {
-      <img class="uploaded-image" [src]="images[activeView]" alt="Foto del material publicado" />
+    @if (images.length > 0) {
+      <img class="uploaded-image" [src]="images[activeView] || images[0]" alt="Foto del material publicado" />
     } @else {
       <div class="main-image-glow"></div>
       <app-material-artwork [art]="art" [variant]="activeView" />
     }
   </div>
-  <div class="thumbnail-list" role="group" aria-label="Imágenes del material">
-    @for (view of views; track view) {
-      <button type="button" class="thumbnail" [class.active]="activeView === view" [attr.aria-label]="'Mostrar imagen ' + (view + 1)" [attr.aria-pressed]="activeView === view" (click)="viewSelected.emit(view)">
-        <span class="thumbnail-image" [style.backgroundColor]="background">
-          @if (images[view]) { <img [src]="images[view]" alt="" /> } @else { <app-material-artwork [art]="art" [variant]="view" /> }
-        </span>
-      </button>
-    }
-  </div>
-  <p class="gallery-caption">Imágenes referenciales del material publicado.</p>
+  @if (views.length > 1 || images.length === 0) {
+    <div class="thumbnail-list" role="group" aria-label="Imágenes del material">
+      @for (view of views; track view) {
+        <button type="button" class="thumbnail" [class.active]="activeView === view" [attr.aria-label]="'Mostrar imagen ' + (view + 1)" [attr.aria-pressed]="activeView === view" (click)="viewSelected.emit(view)">
+          <span class="thumbnail-image" [style.backgroundColor]="background">
+            @if (images[view]) { <img [src]="images[view]" alt="" /> } @else { <app-material-artwork [art]="art" [variant]="view" /> }
+          </span>
+        </button>
+      }
+    </div>
+  }
+  <p class="gallery-caption">{{ images.length > 0 ? 'Fotografías reales subidas por el propietario.' : 'Ilustración referencial del material publicado.' }}</p>
 </section>

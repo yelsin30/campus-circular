@@ -1,6 +1,6 @@
 <div class="marketplace">
-  <app-home-hero [searchTerm]="searchTerm" (searchChanged)="onSearchChanged($event)" />
-  <app-category-nav [categories]="categories" [selectedCategory]="selectedCategory" (categorySelected)="selectCategory($event)" />
+  <app-home-hero [searchTerm]="searchTerm()" (searchChanged)="onSearchChanged($event)" />
+  <app-category-nav [categories]="categories" [selectedCategory]="selectedCategory()" (categorySelected)="selectCategory($event)" />
 
   <section class="results-layout" aria-label="Materiales disponibles">
     <aside class="filters" aria-label="Filtros de búsqueda">
@@ -8,11 +8,10 @@
 
       <fieldset class="filter-group">
         <legend>Carrera académica</legend>
-        <select aria-label="Carrera académica" [value]="selectedCareer" (change)="updateCareer($event)">
-          <option>Todas las carreras</option>
-          <option>Ingeniería</option>
-          <option>Administración</option>
-          <option>Comunicaciones</option>
+        <select aria-label="Carrera académica" [value]="selectedCareer()" (change)="updateCareer($event)">
+          @for (career of careers; track career) {
+            <option [value]="career">{{ career }}</option>
+          }
         </select>
       </fieldset>
 
@@ -20,7 +19,7 @@
         <legend>Estado de conservación</legend>
         @for (condition of conditions; track condition) {
           <label class="check-option">
-            <input type="checkbox" [checked]="selectedConditions.has(condition)" (change)="toggleCondition(condition, $event)" />
+            <input type="checkbox" [checked]="selectedConditions().has(condition)" (change)="toggleCondition(condition, $event)" />
             <span>{{ condition }}</span>
           </label>
         }
@@ -30,7 +29,7 @@
         <legend>Modalidad</legend>
         @for (mode of modes; track mode) {
           <label class="check-option">
-            <input type="checkbox" [checked]="selectedModes.has(mode)" (change)="toggleMode(mode, $event)" />
+            <input type="checkbox" [checked]="selectedModes().has(mode)" (change)="toggleMode(mode, $event)" />
             <span>{{ mode }}</span>
           </label>
         }
@@ -43,21 +42,26 @@
       <div class="results-heading">
         <div class="results-title">
           <h2>Materiales disponibles</h2>
-          <span>{{ filteredMaterials.length }} resultados</span>
+          <span>{{ isLoading() ? 'Cargando...' : filteredMaterials().length + ' resultados' }}</span>
         </div>
         <label class="sort-control">
-          <select aria-label="Ordenar materiales" [value]="sortOrder" (change)="updateSort($event)">
+          <select aria-label="Ordenar materiales" [value]="sortOrder()" (change)="updateSort($event)">
             <option value="recent">Más recientes</option>
             <option value="price">Precio más bajo</option>
           </select>
         </label>
       </div>
 
-      @if (filteredMaterials.length) {
+      @if (filteredMaterials().length) {
         <div class="material-grid">
-          @for (material of filteredMaterials; track material.id) {
-            <app-material-card [material]="material" [favorite]="favorites.has(material.id)" (favoriteToggled)="onFavoriteToggled($event)" />
+          @for (material of filteredMaterials(); track material.id) {
+            <app-material-card [material]="material" [favorite]="favorites().has(material.id)" (favoriteToggled)="onFavoriteToggled($event)" />
           }
+        </div>
+      } @else if (isLoading()) {
+        <div class="empty-state">
+          <h3>Cargando catálogo...</h3>
+          <p>Obteniendo los materiales disponibles de la comunidad UPN.</p>
         </div>
       } @else {
         <div class="empty-state">

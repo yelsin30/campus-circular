@@ -1,6 +1,7 @@
 import { isPlatformBrowser } from '@angular/common';
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject, Injector, PLATFORM_ID } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../data/auth.service';
@@ -32,13 +33,11 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authenticatedReq).pipe(
     catchError((error: unknown) => {
-      if (
-        error instanceof HttpErrorResponse &&
-        (error.status === 401 || error.status === 403)
-      ) {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
         globalThis.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
         globalThis.localStorage.removeItem(USER_STORAGE_KEY);
         injector.get(AuthService, null)?.logout();
+        void injector.get(Router, null)?.navigateByUrl('/login');
       }
       return throwError(() => error);
     }),

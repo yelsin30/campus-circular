@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import pe.edu.upn.campuscircular.modules.auth.dto.RegisterRequest;
+import pe.edu.upn.campuscircular.modules.auth.dto.ResendCodeRequest;
 import pe.edu.upn.campuscircular.modules.auth.dto.VerifyRequest;
 import pe.edu.upn.campuscircular.modules.auth.dto.LoginRequest;
 import pe.edu.upn.campuscircular.modules.auth.dto.AuthResponse;
@@ -28,6 +29,13 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request) {
 
         return ResponseEntity.status(201).body(authService.register(request));
+    }
+
+    @PostMapping("/resend-code")
+    public ResponseEntity<RegistrationResponse> resendCode(
+            @Valid @RequestBody ResendCodeRequest request) {
+
+        return ResponseEntity.ok(authService.resendCode(request));
     }
 
     @PostMapping("/verify")

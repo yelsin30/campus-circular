@@ -1,7 +1,21 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  PLATFORM_ID,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { finalize } from 'rxjs';
 import { ExchangeMode, MarketplaceMaterial, MaterialCondition } from '../../data/material-catalog';
-import { PublicationQueryParams, PublicationService } from '../../data/publication.service';
+import {
+  normalizeFilterText,
+  PublicationQueryParams,
+  PublicationService,
+} from '../../data/publication.service';
 import { CategoryNav } from './category-nav/category-nav';
 import { HomeHero } from './home-hero/home-hero';
 import { MaterialCard } from './material-card/material-card';
@@ -13,9 +27,10 @@ import { MaterialCard } from './material-card/material-card';
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
-export class HomePage implements OnInit {
+export class HomePage {
   private readonly publicationService = inject(PublicationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly platformId = inject(PLATFORM_ID);
 
   readonly categories: { label: string; icon: string }[] = [
     { label: 'Todos', icon: 'all' },
@@ -24,6 +39,17 @@ export class HomePage implements OnInit {
     { label: 'Equipos', icon: 'equipment' },
     { label: 'Materiales', icon: 'shield' },
     { label: 'Otros', icon: 'exchange' },
+  ];
+
+  readonly careers: string[] = [
+    'Todas las carreras',
+    'Ingeniería de Sistemas',
+    'Ingeniería Industrial',
+    'Arquitectura',
+    'Administración',
+    'Derecho',
+    'Psicología',
+    'Comunicaciones',
   ];
 
   readonly conditions: MaterialCondition[] = [
@@ -36,64 +62,122 @@ export class HomePage implements OnInit {
 
   readonly modes: ExchangeMode[] = ['Trueque', 'Donación', 'Precio solidario'];
 
-  selectedCategory = 'Todos';
-  selectedCareer = 'Todas las carreras';
-  selectedConditions = new Set<MaterialCondition>();
-  selectedModes = new Set<ExchangeMode>();
-  searchTerm = '';
-  sortOrder = 'recent';
-  favorites = new Set<string>();
-  materials: MarketplaceMaterial[] = [];
+  readonly publications = signal<MarketplaceMaterial[]>([]);
+  readonly isLoading = signal(false);
+  readonly selectedCategory = signal('Todos');
+  readonly selectedCareer = signal('Todas las carreras');
+  readonly selectedConditions = signal<Set<MaterialCondition>>(new Set());
+  readonly selectedModes = signal<Set<ExchangeMode>>(new Set());
+  readonly searchTerm = signal('');
+  readonly sortOrder = signal('recent');
+  readonly favorites = signal<Set<string>>(new Set());
 
-  ngOnInit(): void {
-    this.fetchPublications();
-  }
+  readonly filteredMaterials = computed<MarketplaceMaterial[]>(() => {
+    const selectedCategoryNorm = normalizeFilterText(this.selectedCategory());
+    const selectedCareerNorm = normalizeFilterText(this.selectedCareer());
+    const selectedConditionsNorm = new Set(
+      [...this.selectedConditions()].map((c) => this.publicationService.toBackendCondition(c)),
+    );
+    const selectedModesNorm = new Set(
+      [...this.selectedModes()].map((m) => this.publicationService.toBackendModality(m)),
+    );
+    const queryNorm = normalizeFilterText(this.searchTerm());
 
-  get filteredMaterials(): MarketplaceMaterial[] {
-    const list = this.materials.filter((material) => {
+    const list = this.publications().filter((material) => {
+      const matchesCategory =
+        selectedCategoryNorm === 'todos' ||
+        normalizeFilterText(material.category) === selectedCategoryNorm;
+
+      const matchesCareer =
+        selectedCareerNorm === 'todas las carreras' ||
+        normalizeFilterText(material.career).includes(selectedCareerNorm);
+
       const matchesConditions =
-        this.selectedConditions.size <= 1 || this.selectedConditions.has(material.condition);
+        selectedConditionsNorm.size === 0 ||
+        selectedConditionsNorm.has(this.publicationService.toBackendCondition(material.condition));
+
       const matchesModes =
-        this.selectedModes.size <= 1 || this.selectedModes.has(material.mode);
-      return matchesConditions && matchesModes;
+        selectedModesNorm.size === 0 ||
+        selectedModesNorm.has(
+          material.backendModality ?? this.publicationService.toBackendModality(material.mode),
+        );
+
+      const matchesQuery =
+        !queryNorm ||
+        normalizeFilterText(
+          `${material.title} ${material.description} ${material.category} ${material.career} ${material.owner}`,
+        ).includes(queryNorm);
+
+      return matchesCategory && matchesCareer && matchesConditions && matchesModes && matchesQuery;
     });
 
+    const sort = this.sortOrder();
     return [...list].sort((first, second) =>
-      this.sortOrder === 'price'
+      sort === 'price'
         ? (first.price ?? 0) - (second.price ?? 0)
         : second.publishedAt - first.publishedAt,
     );
+  });
+
+  constructor() {
+    afterNextRender(() => {
+      this.fetchPublications();
+    });
   }
 
   onSearchChanged(term: string): void {
-    this.searchTerm = term;
+    this.searchTerm.set(term);
     this.fetchPublications();
   }
 
   selectCategory(category: string): void {
-    this.selectedCategory = category;
+    this.selectedCategory.set(category);
     this.fetchPublications();
   }
 
   updateCareer(event: Event): void {
-    this.selectedCareer = (event.target as HTMLSelectElement).value;
+    this.selectedCareer.set((event.target as HTMLSelectElement).value);
     this.fetchPublications();
   }
 
   toggleCondition(condition: MaterialCondition, event: Event): void {
-    this.toggleFilter(this.selectedConditions, condition, event);
+    const checked = (event.target as HTMLInputElement).checked;
+    this.selectedConditions.update((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(condition);
+      } else {
+        next.delete(condition);
+      }
+      return next;
+    });
     this.fetchPublications();
   }
 
   toggleMode(mode: ExchangeMode, event: Event): void {
-    this.toggleFilter(this.selectedModes, mode, event);
+    const checked = (event.target as HTMLInputElement).checked;
+    this.selectedModes.update((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(mode);
+      } else {
+        next.delete(mode);
+      }
+      return next;
+    });
     this.fetchPublications();
   }
 
   toggleFavorite(id: string): void {
-    const next = new Set(this.favorites);
-    next.has(id) ? next.delete(id) : next.add(id);
-    this.favorites = next;
+    this.favorites.update((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }
 
   onFavoriteToggled(id: string): void {
@@ -101,55 +185,53 @@ export class HomePage implements OnInit {
   }
 
   clearFilters(): void {
-    this.selectedCategory = 'Todos';
-    this.selectedCareer = 'Todas las carreras';
-    this.selectedConditions = new Set<MaterialCondition>();
-    this.selectedModes = new Set<ExchangeMode>();
-    this.searchTerm = '';
-    this.sortOrder = 'recent';
+    this.selectedCategory.set('Todos');
+    this.selectedCareer.set('Todas las carreras');
+    this.selectedConditions.set(new Set());
+    this.selectedModes.set(new Set());
+    this.searchTerm.set('');
+    this.sortOrder.set('recent');
     this.fetchPublications();
   }
 
   updateSort(event: Event): void {
-    this.sortOrder = (event.target as HTMLSelectElement).value;
+    this.sortOrder.set((event.target as HTMLSelectElement).value);
   }
 
   private fetchPublications(): void {
-    const firstCondition = [...this.selectedConditions][0];
-    const firstMode = [...this.selectedModes][0];
-    const categoryId =
-      this.selectedCategory !== 'Todos'
-        ? this.publicationService.toCategoryId(this.selectedCategory)
-        : undefined;
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    const conditions = [...this.selectedConditions()];
+    const modes = [...this.selectedModes()];
+    const categorySlug = this.publicationService.toCategorySlug(this.selectedCategory());
+    const career = this.selectedCareer();
+    const query = this.searchTerm().trim();
 
     const queryParams: PublicationQueryParams = {
-      ...(this.selectedCareer !== 'Todas las carreras' ? { carrera: this.selectedCareer } : {}),
-      ...(categoryId !== undefined ? { category: categoryId } : {}),
-      ...(firstCondition
-        ? { condition: this.publicationService.toBackendCondition(firstCondition) }
+      ...(normalizeFilterText(career) !== 'todas las carreras' ? { carrera: career } : {}),
+      ...(categorySlug ? { category: categorySlug } : {}),
+      ...(conditions.length === 1
+        ? { condition: this.publicationService.toBackendCondition(conditions[0]) }
         : {}),
-      ...(firstMode ? { modality: this.publicationService.toBackendModality(firstMode) } : {}),
-      ...(this.searchTerm.trim() ? { q: this.searchTerm.trim() } : {}),
+      ...(modes.length === 1
+        ? { modality: this.publicationService.toBackendModality(modes[0]) }
+        : {}),
+      ...(query ? { q: query } : {}),
       page: 0,
-      size: 20,
+      size: 50,
     };
 
+    this.isLoading.set(true);
     this.publicationService
       .getPublications(queryParams)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.isLoading.set(false)),
+      )
       .subscribe((items) => {
-        this.materials = items;
+        this.publications.set(items);
       });
-  }
-
-  private toggleFilter<T>(selected: Set<T>, value: T, event: Event): void {
-    const next = new Set(selected);
-    (event.target as HTMLInputElement).checked ? next.add(value) : next.delete(value);
-
-    if (this.conditions.includes(value as MaterialCondition)) {
-      this.selectedConditions = next as Set<MaterialCondition>;
-    } else {
-      this.selectedModes = next as Set<ExchangeMode>;
-    }
   }
 }

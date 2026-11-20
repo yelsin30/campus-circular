@@ -24,11 +24,12 @@ export type BackendTransactionStatus =
   | 'COMPLETADA';
 
 export interface CreateTransactionRequestDto {
-  publicationId: number;
-  type: BackendTransactionType;
+  publicationId?: number;
+  type?: BackendTransactionType;
   offeredPublicationId?: number | null;
   idPublicacion: number;
-  idPublicacionOfrecida: number;
+  idPublicacionOfrecida?: number | null;
+  mensajeInicial?: string | null;
 }
 
 export interface TransactionResponseDto {
@@ -53,6 +54,15 @@ export interface TransactionResponseDto {
   otpExpiraEn?: string | null;
   fechaCierre?: string | null;
   yaCalificada?: boolean;
+}
+
+export interface TransactionMessage {
+  idMensaje: number;
+  idTransaccion: number;
+  idEmisor: number;
+  correoEmisor: string | null;
+  contenido: string;
+  fechaEnvio: string;
 }
 
 export interface DeliveryCodeResponseDto {
@@ -105,7 +115,6 @@ export interface ExchangeRequest {
   requesterConfirmed: boolean;
   ownerConfirmed: boolean;
   ratings: ExchangeRating[];
-  demo?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -169,6 +178,18 @@ export class ExchangeService {
     );
   }
 
+  getMessages(id: number | string): Observable<TransactionMessage[]> {
+    const numericId = this.toNumericId(id);
+    return this.http.get<TransactionMessage[]>(`${this.baseUrl}/${numericId}/messages`);
+  }
+
+  sendMessage(id: number | string, contenido: string): Observable<TransactionMessage> {
+    const numericId = this.toNumericId(id);
+    return this.http.post<TransactionMessage>(`${this.baseUrl}/${numericId}/messages`, {
+      contenido: contenido.trim(),
+    });
+  }
+
   generateDeliveryCode(id: number | string): Observable<DeliveryCodeResponseDto> {
     const numericId = this.toNumericId(id);
     return this.http.post<DeliveryCodeResponseDto>(`${this.baseUrl}/${numericId}/delivery-code`, {}).pipe(
@@ -210,8 +231,7 @@ export class ExchangeService {
                 return req;
               }
               const reviewer = this.currentUser || `Usuario #${res.idEmisor}`;
-              const reviewee =
-                req.ownerId === res.idEmisor ? req.requester : req.owner;
+              const reviewee = req.ownerId === res.idEmisor ? req.requester : req.owner;
               return {
                 ...req,
                 alreadyRated: true,
@@ -411,8 +431,16 @@ export class ExchangeService {
     const normalized = raw.toLowerCase();
     if (normalized.includes('libro')) return 'Libros';
     if (normalized.includes('apunte')) return 'Apuntes';
-    if (normalized.includes('equipo')) return 'Equipos';
-    if (normalized.includes('material')) return 'Materiales';
+    if (
+      normalized.includes('equipo') ||
+      normalized.includes('microcontrolador') ||
+      normalized.includes('red') ||
+      normalized.includes('instrument') ||
+      normalized.includes('perif')
+    ) {
+      return 'Equipos';
+    }
+    if (normalized.includes('material') || normalized.includes('textil')) return 'Materiales';
     return 'Otros';
   }
 

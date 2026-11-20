@@ -1,7 +1,11 @@
 <article class="material-card">
-  <div class="material-visual" [style.backgroundColor]="material.background">
+  <div class="material-visual" [class.has-photo]="(material.images?.length ?? 0) > 0" [style.backgroundColor]="material.background">
     <a class="visual-link" [routerLink]="['/material', material.id]" [attr.aria-label]="'Ver ' + material.title">
-      <app-material-artwork [art]="material.art" />
+      @if (material.images?.length) {
+        <img class="material-photo" [src]="material.images![0]" [alt]="material.title" loading="lazy" />
+      } @else {
+        <app-material-artwork [art]="material.art" />
+      }
     </a>
     <button class="favorite-button" type="button" [class.is-favorite]="favorite" [attr.aria-label]="favorite ? 'Quitar de favoritos' : 'Agregar a favoritos'" [attr.aria-pressed]="favorite" (click)="favoriteToggled.emit(material.id)">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 4.1-8.8 10.1-8.8 10.1S3.2 12.9 3.2 8.8a4.5 4.5 0 0 1 8.8-1.2 4.5 4.5 0 0 1 8.8 1.2Z" /></svg>

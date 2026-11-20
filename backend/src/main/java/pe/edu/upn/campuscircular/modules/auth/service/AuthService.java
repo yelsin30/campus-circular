@@ -22,6 +22,7 @@ import pe.edu.upn.campuscircular.modules.auth.domain.EstadoUsuario;
 import pe.edu.upn.campuscircular.modules.auth.domain.RolUsuario;
 import pe.edu.upn.campuscircular.modules.auth.dto.AuthResponse;
 import pe.edu.upn.campuscircular.modules.auth.dto.RegistrationResponse;
+import pe.edu.upn.campuscircular.modules.auth.dto.ResendCodeRequest;
 import pe.edu.upn.campuscircular.modules.auth.dto.VerificationResponse;
 import pe.edu.upn.campuscircular.modules.auth.dto.RegisterRequest;
 import pe.edu.upn.campuscircular.modules.auth.dto.VerifyRequest;
@@ -71,6 +72,45 @@ public class AuthService {
         usuario.setEstado(EstadoUsuario.INACTIVO);
         usuario = usuarioRepository.save(usuario);
 
+        issueAndSendVerificationToken(usuario);
+        return new RegistrationResponse(
+            usuario.getIdUsuario(),
+            usuario.getCorreoInstitucional(),
+            usuario.getEstado(),
+            "Token de verificación enviado");
+    }
+
+    @Transactional
+    public RegistrationResponse resendCode(ResendCodeRequest request) {
+        String email = normalizeEmail(request.email());
+        Usuario usuario = usuarioRepository.findByCorreoInstitucional(email)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "No existe una cuenta registrada con ese correo"));
+
+        if (usuario.getEstado() == EstadoUsuario.ACTIVO) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT, "La cuenta ya fue verificada. Inicia sesión con tu contraseña.");
+        }
+        if (usuario.getEstado() != EstadoUsuario.INACTIVO) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN, "La cuenta no se encuentra pendiente de verificación");
+        }
+
+        var previousTokens = tokenRepository.findByUsuarioAndUsadoFalse(usuario);
+        if (previousTokens != null && !previousTokens.isEmpty()) {
+            previousTokens.forEach(t -> t.setUsado(true));
+            tokenRepository.saveAll(previousTokens);
+        }
+
+        issueAndSendVerificationToken(usuario);
+        return new RegistrationResponse(
+            usuario.getIdUsuario(),
+            usuario.getCorreoInstitucional(),
+            usuario.getEstado(),
+            "Nuevo código de verificación enviado a " + usuario.getCorreoInstitucional());
+    }
+
+    private void issueAndSendVerificationToken(Usuario usuario) {
         String token = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
         TokenVerificacion tokenVerificacion = new TokenVerificacion();
         tokenVerificacion.setUsuario(usuario);
@@ -81,7 +121,7 @@ public class AuthService {
 
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom("no-reply@upn.pe");
-        message.setTo(email);
+        message.setTo(usuario.getCorreoInstitucional());
         message.setSubject("Verifica tu cuenta de Campus Circular");
         message.setText("Tu código de verificación es " + token
             + ". Vence en " + TOKEN_TTL_MINUTES + " minutos.");
@@ -91,11 +131,6 @@ public class AuthService {
             log.error("No se pudo enviar el correo de verificación a {}: {}",
                 usuario.getCorreoInstitucional(), ex.getMessage());
         }
-        return new RegistrationResponse(
-            usuario.getIdUsuario(),
-            usuario.getCorreoInstitucional(),
-            usuario.getEstado(),
-            "Token de verificación enviado");
     }
 
     @Transactional

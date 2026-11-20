@@ -1,6 +1,6 @@
-<article class="request-row" [class.row-selected]="selected" (click)="emit('select')">
+<article class="request-row" [class.row-selected]="selected" [class.row-rejected]="request.status === 'Rechazado'" (click)="emit('select')">
   <div class="request-art" [style.backgroundColor]="material.background">
-    @if (material.images?.length) { <img [src]="material.images[0]" [alt]="material.title" /> }
+    @if (material.images?.length) { <img [src]="material.images![0]" [alt]="material.title" /> }
     @else { <app-material-artwork [art]="material.art" /> }
   </div>
   <div class="request-content">
@@ -13,14 +13,27 @@
     }
     @if (request.message && (request.status === 'En negociación' || agreementDetailsVisible)) { <p class="agreement-note"><strong>Mensaje:</strong> {{ request.message }}</p> }
 
-    @if (activeTab === 'received' && request.status === 'Pendiente') {
+    @if (request.status === 'Rechazado') {
+      <div class="rejected-banner" role="status">
+        @if (activeTab === 'sent') {
+          <strong>Solicitud rechazada:</strong> El propietario rechazó tu propuesta. Puedes explorar otros materiales disponibles en el catálogo.
+        } @else {
+          <strong>Rechazada por ti:</strong> Esta solicitud fue rechazada y la publicación permanece disponible.
+        }
+      </div>
+    } @else if (activeTab === 'received' && request.status === 'Pendiente') {
       <div class="row-actions">
         <button type="button" class="small-primary" (click)="emit('accept', $event)">Aceptar</button>
         <button type="button" class="small-secondary danger" (click)="emit('reject', $event)">Rechazar</button>
+        <button type="button" class="small-secondary" (click)="emit('select', $event)">Chat</button>
+      </div>
+    } @else if (activeTab === 'sent' && request.status === 'Pendiente') {
+      <div class="row-actions">
+        <button type="button" class="small-secondary" (click)="emit('select', $event)">Abrir chat de coordinación</button>
       </div>
     } @else if (request.status === 'En negociación') {
       <div class="row-actions">
-        <button type="button" class="small-primary" (click)="emit('select', $event)">Gestionar entrega OTP</button>
+        <button type="button" class="small-primary" (click)="emit('select', $event)">Chat y entrega OTP</button>
       </div>
     } @else if (activeTab === 'completed') {
       <div class="row-actions">

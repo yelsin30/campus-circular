@@ -345,7 +345,7 @@ export class ModerationService {
       'Usuario suspendido',
       userId,
       user.name,
-      `${user.name} fue suspendido en el modo demostración.`,
+      `${user.name} fue suspendido por moderación.`,
     );
     return true;
   }
@@ -360,7 +360,7 @@ export class ModerationService {
       'Usuario reactivado',
       userId,
       user.name,
-      `${user.name} fue reactivado en el modo demostración.`,
+      `${user.name} fue reactivado por moderación.`,
     );
     return true;
   }

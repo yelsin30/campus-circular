@@ -1,7 +1,61 @@
 <aside class="side-panel">
+  <section class="side-card chat-card" aria-labelledby="chat-title">
+    <div class="side-card-heading">
+      <h2 id="chat-title">Chat de coordinación UPN</h2>
+      @if (request) {
+        <button type="button" class="refresh-chat-btn" [disabled]="loadingMessages()" (click)="loadMessages()">
+          {{ loadingMessages() ? '...' : 'Actualizar' }}
+        </button>
+      }
+    </div>
+    <p class="side-description">Acuerden lugar y hora de entrega dentro del campus UPN (sin pasarela de pagos).</p>
+    @if (request; as selected) {
+      <div class="chat-messages" role="log" aria-live="polite">
+        @if (loadingMessages() && messages().length === 0) {
+          <p class="chat-empty">Cargando mensajes...</p>
+        } @else if (messages().length === 0) {
+          <p class="chat-empty">Aún no hay mensajes. Inicia la coordinación indicando sede, pabellón y horario.</p>
+        } @else {
+          @for (msg of messages(); track msg.idMensaje) {
+            <div class="chat-bubble" [class.mine]="isOwnMessage(msg)">
+              <span class="chat-sender">{{ isOwnMessage(msg) ? 'Tú' : (msg.correoEmisor || counterparty) }}</span>
+              <p>{{ msg.contenido }}</p>
+              <time>{{ formatMessageTime(msg.fechaEnvio) }}</time>
+            </div>
+          }
+        }
+      </div>
+
+      @if (chatError()) {
+        <p class="feedback" role="alert">{{ chatError() }}</p>
+      }
+
+      @if (chatWritable) {
+        <form class="chat-form" (submit)="$event.preventDefault(); sendChatMessage()">
+          <input
+            type="text"
+            class="chat-input"
+            maxlength="1000"
+            placeholder="Ej. Nos vemos en biblioteca a las 3:00 p.m."
+            [value]="chatDraft()"
+            [disabled]="sendingMessage()"
+            (input)="updateChatDraft($event)"
+          />
+          <button type="submit" class="chat-send-btn" [disabled]="sendingMessage() || !chatDraft().trim()">
+            {{ sendingMessage() ? '...' : 'Enviar' }}
+          </button>
+        </form>
+      } @else {
+        <p class="chat-closed-note">El chat es de solo lectura porque la transacción está en estado <strong>{{ selected.status }}</strong>.</p>
+      }
+    } @else {
+      <div class="no-selected"><p>Selecciona una transacción para coordinar la entrega por chat.</p></div>
+    }
+  </section>
+
   <section class="side-card delivery-card" aria-labelledby="delivery-title">
     <div class="side-card-heading"><h2 id="delivery-title">Validación de entrega presencial</h2><svg viewBox="0 0 24 24" aria-label="Confirmación presencial"><path d="M12 3 19 6v5c0 5-3 8-7 10-4-2-7-5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
-    <p class="side-description">Cuando se reúnan en el campus UPN, quien entrega genera el código de 6 caracteres y quien recibe lo ingresa para cerrar el trueque.</p>
+    <p class="side-description">Cuando se reúnan en el campus UPN, quien entrega genera el código de 6 caracteres y quien recibe lo ingresa para cerrar la transacción.</p>
     @if (request; as selected) {
       @if (deliveryEnabled) {
         <div class="selected-exchange">
@@ -9,33 +63,37 @@
           <span>Contraparte: <b>{{ counterparty }}</b> · Estado: <b>{{ selected.status }}</b></span>
         </div>
 
-        <button type="button" class="generate-otp-button" [disabled]="generatingCode" (click)="generateDeliveryCode()">
-          {{ generatingCode ? 'Generando código...' : 'Generar código de entrega' }}
+        <button type="button" class="generate-otp-button" [disabled]="generatingCode()" (click)="generateDeliveryCode()">
+          {{ generatingCode() ? 'Generando código...' : 'Generar código de entrega' }}
         </button>
 
-        @if (generatedCode) {
+        @if (generatedCode()) {
           <div class="generated-code-box" role="status">
             <span class="generated-label">Tu código de entrega presencial</span>
-            <strong class="generated-value">{{ generatedCode }}</strong>
-            <small class="generated-expiry">Válido hasta las {{ generatedExpiresAt }} (15 min)</small>
+            <strong class="generated-value">{{ generatedCode() }}</strong>
+            <small class="generated-expiry">Válido hasta las {{ generatedExpiresAt() }} (15 min)</small>
           </div>
         }
 
         <label class="otp-label" for="delivery-code">Confirmar recepción con código OTP</label>
-        <input id="delivery-code" class="otp-input" type="text" maxlength="6" autocomplete="one-time-code" [value]="otpCode" (input)="updateOtp($event)" placeholder="A7B9X2" />
+        <input id="delivery-code" class="otp-input" type="text" maxlength="6" autocomplete="one-time-code" [value]="otpCode()" (input)="updateOtp($event)" placeholder="A7B9X2" />
 
-        <button type="button" class="confirm-button" [disabled]="confirmingDelivery" (click)="confirmDelivery()">
-          <span aria-hidden="true">✓</span>{{ confirmingDelivery ? 'Validando...' : 'Confirmar recepción con código OTP' }}
+        <button type="button" class="confirm-button" [disabled]="confirmingDelivery()" (click)="confirmDelivery()">
+          <span aria-hidden="true">✓</span>{{ confirmingDelivery() ? 'Validando...' : 'Confirmar recepción con código OTP' }}
         </button>
 
-        @if (otpMessage) {
-          <p class="feedback" [class.feedback-success]="otpSuccess" role="status">{{ otpMessage }}</p>
+        @if (otpMessage()) {
+          <p class="feedback" [class.feedback-success]="otpSuccess()" role="status">{{ otpMessage() }}</p>
         }
       } @else {
-        <div class="no-selected">
-          <p>Selecciona una transacción <strong>En negociación</strong> para generar o validar el código OTP de entrega.</p>
-          @if (selected.status === 'Completado') { <span>Esta entrega ya fue completada.</span> }
-          @if (selected.status === 'Pendiente') { <span>El propietario debe aceptar primero la solicitud.</span> }
+        <div class="no-selected" [class.rejected-notice]="selected.status === 'Rechazado'">
+          @if (selected.status === 'Rechazado') {
+            <p><strong>Solicitud rechazada.</strong> Esta transacción fue rechazada por el propietario y no puede avanzar a entrega presencial.</p>
+          } @else {
+            <p>Selecciona una transacción <strong>En negociación</strong> para generar o validar el código OTP de entrega.</p>
+            @if (selected.status === 'Completado') { <span>Esta entrega ya fue completada.</span> }
+            @if (selected.status === 'Pendiente') { <span>El propietario debe aceptar primero la solicitud.</span> }
+          }
         </div>
       }
     } @else {
@@ -50,16 +108,16 @@
         <div class="rating-person"><span class="rating-avatar">{{ counterparty.slice(0, 2).toUpperCase() }}</span><span><strong>{{ counterparty }}</strong><small>{{ material?.title }} · Intercambio completado</small></span></div>
         @if (alreadyRated) {
           <p class="already-rated">Ya registraste tu calificación para esta transacción.</p>
-          @if (ratingMessage) { <p class="feedback feedback-success" role="status">{{ ratingMessage }}</p> }
+          @if (ratingMessage()) { <p class="feedback feedback-success" role="status">{{ ratingMessage() }}</p> }
         } @else {
           <div class="star-picker" role="group" aria-label="Califica de una a cinco estrellas">
-            @for (star of [1, 2, 3, 4, 5]; track star) { <button type="button" [class.star-active]="star <= selectedRating" [attr.aria-label]="star + ' estrellas'" [attr.aria-pressed]="selectedRating === star" (click)="setRating(star)">{{ star <= selectedRating ? '★' : '☆' }}</button> }
+            @for (star of [1, 2, 3, 4, 5]; track star) { <button type="button" [class.star-active]="star <= selectedRating()" [attr.aria-label]="star + ' estrellas'" [attr.aria-pressed]="selectedRating() === star" (click)="setRating(star)">{{ star <= selectedRating() ? '★' : '☆' }}</button> }
           </div>
-          <textarea class="rating-comment" maxlength="500" placeholder="Escribe un comentario sobre la entrega (opcional)..." [value]="ratingComment" (input)="updateRatingComment($event)"></textarea>
-          <button type="button" class="confirm-button" [disabled]="submittingRating" (click)="submitRating()">
-            {{ submittingRating ? 'Enviando...' : 'Enviar calificación' }}
+          <textarea class="rating-comment" maxlength="500" placeholder="Escribe un comentario sobre la entrega (opcional)..." [value]="ratingComment()" (input)="updateRatingComment($event)"></textarea>
+          <button type="button" class="confirm-button" [disabled]="submittingRating()" (click)="submitRating()">
+            {{ submittingRating() ? 'Enviando...' : 'Enviar calificación' }}
           </button>
-          @if (ratingMessage) { <p class="feedback" [class.feedback-success]="ratingSuccess" role="status">{{ ratingMessage }}</p> }
+          @if (ratingMessage()) { <p class="feedback" [class.feedback-success]="ratingSuccess()" role="status">{{ ratingMessage() }}</p> }
         }
       } @else {
         <div class="no-selected"><p>Podrás calificar al otro estudiante cuando la entrega haya sido confirmada.</p></div>

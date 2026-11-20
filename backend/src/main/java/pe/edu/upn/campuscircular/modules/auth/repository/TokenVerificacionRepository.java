@@ -1,5 +1,6 @@
 package pe.edu.upn.campuscircular.modules.auth.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,6 @@ public interface TokenVerificacionRepository
         extends JpaRepository<TokenVerificacion, Long> {
     Optional<TokenVerificacion> findFirstByUsuarioAndUsadoFalseOrderByIdTokenDesc(
         Usuario usuario);
+
+    List<TokenVerificacion> findByUsuarioAndUsadoFalse(Usuario usuario);
 }

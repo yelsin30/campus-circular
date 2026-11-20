@@ -1,14 +1,16 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, EventEmitter, Input, Output, PLATFORM_ID, inject } from '@angular/core';
+import { Component, EventEmitter, inject, Input, Output, PLATFORM_ID } from '@angular/core';
 
 export interface ImagePreview {
   name: string;
   dataUrl: string;
 }
 
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 3;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const IMAGE_TYPES = ['image/jpeg', 'image/png'];
+const MAX_DIMENSION_PX = 800;
+const JPEG_QUALITY = 0.75;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Component({
   selector: 'app-photo-upload',
@@ -38,8 +40,14 @@ export class PhotoUpload {
     void this.addFiles(Array.from(event.dataTransfer?.files ?? []));
   }
 
-  onDragOver(event: DragEvent): void { event.preventDefault(); this.isDragging = true; }
-  onDragLeave(): void { this.isDragging = false; }
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.isDragging = true;
+  }
+
+  onDragLeave(): void {
+    this.isDragging = false;
+  }
 
   removeImage(index: number): void {
     this.previews = this.previews.filter((_, previewIndex) => previewIndex !== index);
@@ -57,8 +65,8 @@ export class PhotoUpload {
         errors.push(`Puedes cargar hasta ${MAX_IMAGES} imágenes.`);
         break;
       }
-      if (!IMAGE_TYPES.includes(file.type) || !/\.(jpe?g|png)$/i.test(file.name)) {
-        errors.push(`${file.name}: utiliza una imagen JPG o PNG.`);
+      if (!IMAGE_TYPES.includes(file.type) || !/\.(jpe?g|png|webp)$/i.test(file.name)) {
+        errors.push(`${file.name}: utiliza una imagen JPG, PNG o WebP.`);
         continue;
       }
       if (file.size > MAX_IMAGE_SIZE) {
@@ -66,11 +74,11 @@ export class PhotoUpload {
         continue;
       }
       try {
-        const dataUrl = await this.readImage(file);
+        const dataUrl = await this.compressImage(file);
         this.previews = [...this.previews, { name: file.name, dataUrl }];
         this.previewsChange.emit(this.previews);
       } catch {
-        errors.push(`${file.name}: no se pudo leer el archivo.`);
+        errors.push(`${file.name}: no se pudo procesar la imagen.`);
       }
     }
     this.setErrors(errors);
@@ -81,10 +89,56 @@ export class PhotoUpload {
     this.photoErrorsChange.emit(errors);
   }
 
+  private async compressImage(file: File): Promise<string> {
+    const rawDataUrl = await this.readImage(file);
+    if (typeof document === 'undefined' || typeof Image === 'undefined') {
+      return rawDataUrl;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > MAX_DIMENSION_PX || height > MAX_DIMENSION_PX) {
+            if (width >= height) {
+              height = Math.max(1, Math.round((height * MAX_DIMENSION_PX) / width));
+              width = MAX_DIMENSION_PX;
+            } else {
+              width = Math.max(1, Math.round((width * MAX_DIMENSION_PX) / height));
+              height = MAX_DIMENSION_PX;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawDataUrl);
+            return;
+          }
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+          resolve(compressed && compressed.length < rawDataUrl.length ? compressed : rawDataUrl);
+        } catch {
+          resolve(rawDataUrl);
+        }
+      };
+      img.onerror = () => resolve(rawDataUrl);
+      img.src = rawDataUrl;
+    });
+  }
+
   private readImage(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Formato inválido'));
+      reader.onload = () =>
+        typeof reader.result === 'string'
+          ? resolve(reader.result)
+          : reject(new Error('Formato inválido'));
       reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo'));
       reader.readAsDataURL(file);
     });

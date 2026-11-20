@@ -30,16 +30,20 @@ import pe.edu.upn.campuscircular.modules.catalog.repository.PublicacionRepositor
 import pe.edu.upn.campuscircular.modules.metrics.service.ImpactMetricsService;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Calificacion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
+import pe.edu.upn.campuscircular.modules.transaction.domain.MensajeTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
 import pe.edu.upn.campuscircular.modules.transaction.domain.TipoTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Transaccion;
 import pe.edu.upn.campuscircular.modules.transaction.dto.ConfirmDeliveryRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateRatingRequest;
+import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionMessageRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.DeliveryCodeResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.RatingResponse;
+import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionMessageResponse;
 import pe.edu.upn.campuscircular.modules.transaction.dto.TransactionResponse;
 import pe.edu.upn.campuscircular.modules.transaction.repository.CalificacionRepository;
+import pe.edu.upn.campuscircular.modules.transaction.repository.MensajeTransaccionRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.OfertaTruequeRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.TransaccionRepository;
 
@@ -63,6 +67,7 @@ public class TransactionService {
     private final PasswordEncoder passwordEncoder;
     private final JavaMailSender mailSender;
     private final ImpactMetricsService impactMetricsService;
+    private final MensajeTransaccionRepository mensajeTransaccionRepository;
 
     public TransactionService(
             TransaccionRepository transaccionRepository,
@@ -76,6 +81,7 @@ public class TransactionService {
             usuarioRepository,
             null,
             new BCryptPasswordEncoder(),
+            null,
             null,
             null);
     }
@@ -96,6 +102,28 @@ public class TransactionService {
             calificacionRepository,
             passwordEncoder,
             mailSender,
+            null,
+            null);
+    }
+
+    public TransactionService(
+            TransaccionRepository transaccionRepository,
+            OfertaTruequeRepository ofertaTruequeRepository,
+            PublicacionRepository publicacionRepository,
+            UsuarioRepository usuarioRepository,
+            CalificacionRepository calificacionRepository,
+            PasswordEncoder passwordEncoder,
+            JavaMailSender mailSender,
+            ImpactMetricsService impactMetricsService) {
+        this(
+            transaccionRepository,
+            ofertaTruequeRepository,
+            publicacionRepository,
+            usuarioRepository,
+            calificacionRepository,
+            passwordEncoder,
+            mailSender,
+            impactMetricsService,
             null);
     }
 
@@ -108,7 +136,8 @@ public class TransactionService {
             CalificacionRepository calificacionRepository,
             PasswordEncoder passwordEncoder,
             JavaMailSender mailSender,
-            ImpactMetricsService impactMetricsService) {
+            ImpactMetricsService impactMetricsService,
+            MensajeTransaccionRepository mensajeTransaccionRepository) {
         this.transaccionRepository = transaccionRepository;
         this.ofertaTruequeRepository = ofertaTruequeRepository;
         this.publicacionRepository = publicacionRepository;
@@ -117,6 +146,7 @@ public class TransactionService {
         this.passwordEncoder = passwordEncoder;
         this.mailSender = mailSender;
         this.impactMetricsService = impactMetricsService;
+        this.mensajeTransaccionRepository = mensajeTransaccionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -142,38 +172,137 @@ public class TransactionService {
                 HttpStatus.BAD_REQUEST, "No puedes solicitar un trueque sobre tu propia publicación");
         }
 
-        Publicacion ofrecida = publicacionRepository.findById(request.idPublicacionOfrecida())
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.NOT_FOUND, "La publicación ofrecida no existe"));
+        ModalidadPublicacion modalidad = solicitada.getModalidad();
+        Publicacion ofrecida = null;
 
-        if (solicitada.getIdPublicacion().equals(ofrecida.getIdPublicacion())) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST, "Las publicaciones solicitada y ofrecida deben ser distintas");
+        if (modalidad == ModalidadPublicacion.TRUEQUE) {
+            if (request.idPublicacionOfrecida() == null) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Para un trueque debes seleccionar la publicación que ofreces a cambio");
+            }
+            ofrecida = publicacionRepository.findById(request.idPublicacionOfrecida())
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "La publicación ofrecida no existe"));
+
+            if (solicitada.getIdPublicacion().equals(ofrecida.getIdPublicacion())) {
+                throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Las publicaciones solicitada y ofrecida deben ser distintas");
+            }
+            if (!ofrecida.getUsuario().getIdUsuario().equals(solicitante.getIdUsuario())) {
+                throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "La publicación ofrecida debe pertenecer al usuario autenticado");
+            }
+            requireAvailableTrade(solicitada, "solicitada");
+            requireAvailableTrade(ofrecida, "ofrecida");
+        } else {
+            if (request.idPublicacionOfrecida() != null) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "La publicación solicitada no permite trueque porque su modalidad es "
+                        + modalidad + " (se requiere TRUEQUE)");
+            }
+            if (solicitada.getEstado() != EstadoPublicacion.DISPONIBLE) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "La publicación solicitada no está disponible porque su estado es "
+                        + solicitada.getEstado() + " (se requiere DISPONIBLE)");
+            }
         }
-        if (!ofrecida.getUsuario().getIdUsuario().equals(solicitante.getIdUsuario())) {
-            throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN, "La publicación ofrecida debe pertenecer al usuario autenticado");
-        }
-        requireAvailableTrade(solicitada, "solicitada");
-        requireAvailableTrade(ofrecida, "ofrecida");
+
+        TipoTransaccion tipoTransaccion = switch (modalidad) {
+            case VENTA_SOLIDARIA -> TipoTransaccion.VENTA_SOLIDARIA;
+            case DONACION -> TipoTransaccion.DONACION;
+            case TRUEQUE -> TipoTransaccion.TRUEQUE;
+        };
 
         Transaccion transaccion = new Transaccion();
         transaccion.setPublicacion(solicitada);
         transaccion.setSolicitante(solicitante);
         transaccion.setPropietario(solicitada.getUsuario());
-        transaccion.setTipo(TipoTransaccion.TRUEQUE);
+        transaccion.setTipo(tipoTransaccion);
         transaccion.setEstado(EstadoTransaccion.PENDIENTE);
         transaccion.setFechaCreacion(LocalDateTime.now());
         transaccion = transaccionRepository.save(transaccion);
 
-        OfertaTrueque oferta = new OfertaTrueque();
-        oferta.setTransaccion(transaccion);
-        oferta.setPublicacionOfrecida(ofrecida);
-        oferta.setEstado(PENDING_OFFER_STATUS);
-        ofertaTruequeRepository.save(oferta);
+        if (ofrecida != null) {
+            OfertaTrueque oferta = new OfertaTrueque();
+            oferta.setTransaccion(transaccion);
+            oferta.setPublicacionOfrecida(ofrecida);
+            oferta.setEstado(PENDING_OFFER_STATUS);
+            ofertaTruequeRepository.save(oferta);
+        }
+
+        if (mensajeTransaccionRepository != null
+                && request.mensajeInicial() != null
+                && !request.mensajeInicial().isBlank()) {
+            MensajeTransaccion mensaje = new MensajeTransaccion();
+            mensaje.setTransaccion(transaccion);
+            mensaje.setEmisor(solicitante);
+            mensaje.setContenido(request.mensajeInicial().trim());
+            mensaje.setFechaEnvio(LocalDateTime.now());
+            mensajeTransaccionRepository.save(mensaje);
+        }
 
         return TransactionResponse.from(
-            transaccion, ofrecida, ofrecida.getIdPublicacion(), false);
+            transaccion,
+            ofrecida,
+            ofrecida != null ? ofrecida.getIdPublicacion() : null,
+            false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransactionMessageResponse> getMessages(String email, Long idTransaccion) {
+        Usuario usuario = requireActiveUser(email);
+        Transaccion transaccion = findTransaction(idTransaccion);
+
+        if (!isParticipant(transaccion, usuario)) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Solo los participantes de la transacción pueden consultar los mensajes");
+        }
+        if (mensajeTransaccionRepository == null) {
+            return List.of();
+        }
+        return mensajeTransaccionRepository
+            .findByTransaccionIdTransaccionOrderByFechaEnvioAscIdMensajeAsc(idTransaccion)
+            .stream()
+            .map(TransactionMessageResponse::from)
+            .toList();
+    }
+
+    @Transactional
+    public TransactionMessageResponse sendMessage(
+            String email, Long idTransaccion, CreateTransactionMessageRequest request) {
+        Usuario usuario = requireActiveUser(email);
+        Transaccion transaccion = findTransaction(idTransaccion);
+
+        if (!isParticipant(transaccion, usuario)) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "Solo los participantes de la transacción pueden enviar mensajes");
+        }
+        if (transaccion.getEstado() != EstadoTransaccion.PENDIENTE
+                && transaccion.getEstado() != EstadoTransaccion.EN_NEGOCIACION
+                && transaccion.getEstado() != EstadoTransaccion.ACEPTADA) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Solo se pueden enviar mensajes en transacciones activas (PENDIENTE o EN_NEGOCIACION)");
+        }
+        if (request == null || request.contenido() == null || request.contenido().isBlank()) {
+            throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "El mensaje no puede estar vacío");
+        }
+
+        MensajeTransaccion mensaje = new MensajeTransaccion();
+        mensaje.setTransaccion(transaccion);
+        mensaje.setEmisor(usuario);
+        mensaje.setContenido(request.contenido().trim());
+        mensaje.setFechaEnvio(LocalDateTime.now());
+        if (mensajeTransaccionRepository != null) {
+            mensaje = mensajeTransaccionRepository.save(mensaje);
+        }
+        return TransactionMessageResponse.from(mensaje);
     }
 
     @Transactional

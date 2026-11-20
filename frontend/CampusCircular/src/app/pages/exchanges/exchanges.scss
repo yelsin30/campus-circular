@@ -20,6 +20,8 @@
 .empty-state p { font-size:.72rem; margin:0 0 .8rem; }
 .empty-state a { background:#ffd100; border-radius:.45rem; color:#252a32; font-size:.68rem; font-weight:750; padding:.5rem .7rem; text-decoration:none; }
 .action-feedback { background:#f2f8ff; border-radius:.45rem; color:#38628e; font-size:.68rem; margin:.5rem 0; padding:.5rem .65rem; }
+.rejected-pill { background:#fde9e9; border-radius:1rem; color:#b13f43; font-size:.56rem; font-style:normal; font-weight:800; margin-left:.3rem; padding:.14rem .4rem; }
+.rejected-alert-banner { background:#fff1f1; border:1px solid #f4c6c8; border-radius:.55rem; color:#9a2f34; font-size:.68rem; line-height:1.45; margin:.55rem 0; padding:.58rem .72rem; }
 @media (max-width:850px) { .exchange-layout { grid-template-columns:minmax(0,1fr); } }
 @media (max-width:600px) {
   .exchanges-page { margin-top:0; }

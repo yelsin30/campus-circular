@@ -4,7 +4,6 @@ import { catchError, map, Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   ExchangeMode,
-  MATERIAL_CATALOG,
   MarketplaceMaterial,
   MaterialArt,
   MaterialCategory,
@@ -21,12 +20,15 @@ export interface PublicationResponseDto {
   categoria: string;
   carrera: string | null;
   usuarioId: number;
+  propietarioCorreo?: string | null;
   titulo: string;
   descripcion: string;
   condicion: BackendCondition;
   modalidad: BackendModality;
   estado: BackendPublicationStatus;
   precioSolidario: number | null;
+  imagenUrl?: string | null;
+  imagenes?: string[] | null;
   fechaCreacion: string;
 }
 
@@ -45,6 +47,9 @@ export interface CreatePublicationRequestDto {
   condicion: BackendCondition;
   modalidad: BackendModality;
   precioSolidario: number | null;
+  imagenUrl?: string | null;
+  imagenes?: string[];
+  carrera?: string | null;
 }
 
 export interface CreatedPublicationResponseDto {
@@ -55,7 +60,7 @@ export interface CreatedPublicationResponseDto {
 
 export interface PublicationQueryParams {
   carrera?: string;
-  category?: number;
+  category?: number | string;
   condition?: BackendCondition;
   modality?: BackendModality;
   q?: string;
@@ -63,12 +68,21 @@ export interface PublicationQueryParams {
   size?: number;
 }
 
+export function normalizeFilterText(value: string | null | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
 @Injectable({ providedIn: 'root' })
 export class PublicationService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/publications`;
 
-  private readonly publicationsSignal = signal<MarketplaceMaterial[]>([...MATERIAL_CATALOG]);
+  private readonly publicationsSignal = signal<MarketplaceMaterial[]>([]);
   readonly publications = this.publicationsSignal.asReadonly();
   readonly publicMaterials = computed(() =>
     this.publicationsSignal().filter((item) => (item.publicationStatus ?? 'Activa') === 'Activa'),
@@ -77,10 +91,10 @@ export class PublicationService {
   getPublications(filters: PublicationQueryParams = {}): Observable<MarketplaceMaterial[]> {
     let params = new HttpParams();
 
-    if (filters.carrera && filters.carrera !== 'Todas las carreras') {
-      params = params.set('carrera', filters.carrera);
+    if (filters.carrera && normalizeFilterText(filters.carrera) !== 'todas las carreras') {
+      params = params.set('carrera', filters.carrera.trim());
     }
-    if (filters.category !== undefined && filters.category !== null) {
+    if (filters.category !== undefined && filters.category !== null && String(filters.category).trim() !== '') {
       params = params.set('category', String(filters.category));
     }
     if (filters.condition) {
@@ -102,9 +116,27 @@ export class PublicationService {
     return this.http.get<PageResponseDto<PublicationResponseDto>>(this.baseUrl, { params }).pipe(
       map((page) => (page?.content ?? []).map((dto) => this.mapToMarketplaceMaterial(dto))),
       tap((items) => this.publicationsSignal.set(items)),
-      catchError(() => {
-        return of(this.filterFallbackCatalog(filters));
+      catchError(() => of(this.publicationsSignal())),
+    );
+  }
+
+  getPublicationById(id: number | string): Observable<MarketplaceMaterial | undefined> {
+    const numericId = Number(id);
+    if (!Number.isFinite(numericId) || numericId <= 0) {
+      return of(this.findById(String(id)));
+    }
+
+    return this.http.get<PublicationResponseDto>(`${this.baseUrl}/${numericId}`).pipe(
+      map((dto) => this.mapToMarketplaceMaterial(dto)),
+      tap((mapped) => {
+        this.publicationsSignal.update((current) => {
+          const exists = current.some((item) => item.id === mapped.id);
+          return exists
+            ? current.map((item) => (item.id === mapped.id ? mapped : item))
+            : [mapped, ...current];
+        });
       }),
+      catchError(() => of(this.findById(String(id)))),
     );
   }
 
@@ -118,10 +150,7 @@ export class PublicationService {
 
   findById(id: string | null | undefined): MarketplaceMaterial | undefined {
     if (!id) return undefined;
-    return (
-      this.publicationsSignal().find((item) => item.id === id) ??
-      MATERIAL_CATALOG.find((item) => item.id === id)
-    );
+    return this.publicationsSignal().find((item) => item.id === id);
   }
 
   findPublicById(id: string | null | undefined): MarketplaceMaterial | undefined {
@@ -130,36 +159,49 @@ export class PublicationService {
   }
 
   toCategoryId(category: MaterialCategory | string): number | undefined {
-    switch (category) {
-      case 'Libros':
+    switch (normalizeFilterText(category)) {
+      case 'libros':
+      case 'libro':
         return 1;
-      case 'Apuntes':
+      case 'apuntes':
+      case 'apunte':
         return 2;
-      case 'Equipos':
+      case 'equipos':
+      case 'equipo':
         return 3;
-      case 'Materiales':
+      case 'materiales':
+      case 'material':
         return 4;
-      case 'Otros':
+      case 'otros':
+      case 'otro':
         return 5;
       default:
         return undefined;
     }
   }
 
+  toCategorySlug(category: MaterialCategory | string): string | undefined {
+    const normalized = normalizeFilterText(category);
+    if (!normalized || normalized === 'todos' || normalized === 'all') {
+      return undefined;
+    }
+    return normalized;
+  }
+
   toBackendCondition(condition: MaterialCondition | BackendCondition | string): BackendCondition {
-    switch (condition.trim().toUpperCase()) {
-      case 'NUEVO':
+    switch (normalizeFilterText(condition).replace(/[_-]/g, ' ')) {
+      case 'nuevo':
         return 'NUEVO';
-      case 'SEMINUEVO':
+      case 'seminuevo':
         return 'SEMINUEVO';
-      case 'BUENO':
-      case 'EN BUEN ESTADO':
+      case 'bueno':
+      case 'en buen estado':
         return 'BUENO';
-      case 'ACEPTABLE':
+      case 'aceptable':
         return 'ACEPTABLE';
-      case 'SCRAP':
-      case 'REPUESTOS / SCRAP':
-      case 'REPUESTOS / SCRAP (RAEE)':
+      case 'scrap':
+      case 'repuestos / scrap':
+      case 'repuestos / scrap (raee)':
         return 'SCRAP';
       default:
         return 'BUENO';
@@ -167,19 +209,19 @@ export class PublicationService {
   }
 
   fromBackendCondition(condition: BackendCondition | string): MaterialCondition {
-    switch (condition.trim().toUpperCase()) {
-      case 'NUEVO':
+    switch (normalizeFilterText(condition).replace(/[_-]/g, ' ')) {
+      case 'nuevo':
         return 'Nuevo';
-      case 'SEMINUEVO':
+      case 'seminuevo':
         return 'Seminuevo';
-      case 'BUENO':
-      case 'EN BUEN ESTADO':
+      case 'bueno':
+      case 'en buen estado':
         return 'En buen estado';
-      case 'ACEPTABLE':
+      case 'aceptable':
         return 'Aceptable';
-      case 'SCRAP':
-      case 'REPUESTOS / SCRAP':
-      case 'REPUESTOS / SCRAP (RAEE)':
+      case 'scrap':
+      case 'repuestos / scrap':
+      case 'repuestos / scrap (raee)':
         return 'Repuestos / Scrap';
       default:
         return 'En buen estado';
@@ -187,15 +229,14 @@ export class PublicationService {
   }
 
   toBackendModality(mode: ExchangeMode | BackendModality | string): BackendModality {
-    switch (mode.trim().toUpperCase()) {
-      case 'TRUEQUE':
-      case 'INTERCAMBIO':
+    switch (normalizeFilterText(mode).replace(/[_-]/g, ' ')) {
+      case 'trueque':
+      case 'intercambio':
         return 'TRUEQUE';
-      case 'DONACION':
-      case 'DONACIÓN':
+      case 'donacion':
         return 'DONACION';
-      case 'VENTA_SOLIDARIA':
-      case 'PRECIO SOLIDARIO':
+      case 'venta solidaria':
+      case 'precio solidario':
         return 'VENTA_SOLIDARIA';
       default:
         return 'TRUEQUE';
@@ -203,15 +244,14 @@ export class PublicationService {
   }
 
   fromBackendModality(modality: BackendModality | string): ExchangeMode {
-    switch (modality.trim().toUpperCase()) {
-      case 'TRUEQUE':
-      case 'INTERCAMBIO':
+    switch (normalizeFilterText(modality).replace(/[_-]/g, ' ')) {
+      case 'trueque':
+      case 'intercambio':
         return 'Trueque';
-      case 'DONACION':
-      case 'DONACIÓN':
+      case 'donacion':
         return 'Donación';
-      case 'VENTA_SOLIDARIA':
-      case 'PRECIO SOLIDARIO':
+      case 'venta solidaria':
+      case 'precio solidario':
         return 'Precio solidario';
       default:
         return 'Trueque';
@@ -219,11 +259,28 @@ export class PublicationService {
   }
 
   fromBackendCategory(rawCategory: string | null | undefined, categoriaId?: number): MaterialCategory {
-    const normalized = (rawCategory ?? '').toLowerCase();
+    const normalized = normalizeFilterText(rawCategory);
     if (normalized.includes('libro') || categoriaId === 1) return 'Libros';
     if (normalized.includes('apunte') || categoriaId === 2) return 'Apuntes';
-    if (normalized.includes('equipo') || normalized.includes('electr') || categoriaId === 3) return 'Equipos';
-    if (normalized.includes('material') || normalized.includes('arquitectura') || categoriaId === 4) return 'Materiales';
+    if (
+      normalized.includes('equipo') ||
+      normalized.includes('electr') ||
+      normalized.includes('microcontrolador') ||
+      normalized.includes('red') ||
+      normalized.includes('instrumentacion') ||
+      normalized.includes('periferico') ||
+      categoriaId === 3
+    ) {
+      return 'Equipos';
+    }
+    if (
+      normalized.includes('material') ||
+      normalized.includes('arquitectura') ||
+      normalized.includes('textil') ||
+      categoriaId === 4
+    ) {
+      return 'Materiales';
+    }
     return 'Otros';
   }
 
@@ -232,7 +289,23 @@ export class PublicationService {
     const mode = this.fromBackendModality(dto.modalidad);
     const condition = this.fromBackendCondition(dto.condicion);
     const createdTimestamp = dto.fechaCreacion ? Date.parse(dto.fechaCreacion) : Date.now();
-    const ownerLabel = `Usuario #${dto.usuarioId}`;
+    const ownerEmail = dto.propietarioCorreo?.trim();
+    const ownerLabel = ownerEmail || `Usuario #${dto.usuarioId}`;
+    const initials = ownerEmail
+      ? ownerEmail.slice(0, 2).toUpperCase()
+      : `U${dto.usuarioId}`;
+
+    const resolvedImages: string[] = [];
+    if (Array.isArray(dto.imagenes)) {
+      for (const img of dto.imagenes) {
+        if (img && img.trim()) {
+          resolvedImages.push(img.trim());
+        }
+      }
+    }
+    if (resolvedImages.length === 0 && dto.imagenUrl && dto.imagenUrl.trim()) {
+      resolvedImages.push(dto.imagenUrl.trim());
+    }
 
     return {
       id: String(dto.id),
@@ -242,20 +315,21 @@ export class PublicationService {
       condition,
       mode,
       owner: ownerLabel,
-      initials: `U${dto.usuarioId}`,
+      initials,
       ...(dto.precioSolidario !== null && dto.precioSolidario !== undefined
         ? { price: Number(dto.precioSolidario) }
         : {}),
       art: this.artForCategory(category),
       background: this.backgroundForCategory(category),
       publishedAt: Number.isNaN(createdTimestamp) ? Date.now() : createdTimestamp,
-      publishedLabel: 'reciente',
+      publishedLabel: this.formatRelativeDate(createdTimestamp),
       campus: 'Campus UPN',
       publisher: ownerLabel,
       description: dto.descripcion,
       rating: 5,
       ratingCount: 1,
       offeredExamples: mode === 'Trueque' ? ['Material académico equivalente'] : [],
+      ...(resolvedImages.length > 0 ? { images: resolvedImages } : {}),
       publicationStatus: dto.estado === 'DISPONIBLE' ? 'Activa' : 'Oculta',
       ownerId: dto.usuarioId,
       backendModality: dto.modalidad,
@@ -263,28 +337,13 @@ export class PublicationService {
     };
   }
 
-  private filterFallbackCatalog(filters: PublicationQueryParams): MarketplaceMaterial[] {
-    return MATERIAL_CATALOG.filter((item) => {
-      if ((item.publicationStatus ?? 'Activa') !== 'Activa') return false;
-      if (filters.carrera && !item.career.toLowerCase().includes(filters.carrera.toLowerCase())) {
-        return false;
-      }
-      if (filters.category !== undefined && this.toCategoryId(item.category) !== filters.category) {
-        return false;
-      }
-      if (filters.condition && this.toBackendCondition(item.condition) !== filters.condition) {
-        return false;
-      }
-      if (filters.modality && this.toBackendModality(item.mode) !== filters.modality) {
-        return false;
-      }
-      if (filters.q) {
-        const q = filters.q.toLowerCase();
-        const haystack = `${item.title} ${item.description} ${item.category} ${item.owner}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
+  private formatRelativeDate(timestamp: number): string {
+    if (Number.isNaN(timestamp)) return 'reciente';
+    return new Intl.DateTimeFormat('es-PE', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(timestamp);
   }
 
   private artForCategory(category: MaterialCategory): MaterialArt {

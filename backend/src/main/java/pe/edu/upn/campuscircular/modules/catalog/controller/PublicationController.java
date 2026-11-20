@@ -9,6 +9,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +34,7 @@ public class PublicationController {
     @GetMapping
     public PageResponse<PublicationResponse> search(
             @RequestParam(required = false) String carrera,
-            @RequestParam(required = false) Long category,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String condition,
             @RequestParam(required = false) String modality,
             @RequestParam(required = false, name = "q") String query,
@@ -42,6 +43,11 @@ public class PublicationController {
         Page<PublicationResponse> result = publicationService.search(
             carrera, category, condition, modality, query, pageable);
         return PageResponse.from(result);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PublicationResponse> findById(@PathVariable Long id) {
+        return ResponseEntity.ok(publicationService.findById(id));
     }
 
     @PostMapping

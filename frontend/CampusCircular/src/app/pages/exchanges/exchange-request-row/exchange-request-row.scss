@@ -31,4 +31,7 @@
 .rated-note { color:#368052; }
 .agreement-note { background:#f5f7fa; border-radius:.4rem; color:#697382; font-size:.68rem; line-height:1.45; margin:.4rem 0; padding:.5rem; }
 .agreement-note strong { color:#3f4753; }
+.row-rejected { border-left:3px solid #d14b50; padding-left:.55rem; }
+.rejected-banner { background:#fff1f1; border:1px solid #f4c6c8; border-radius:.45rem; color:#9a2f34; font-size:.65rem; line-height:1.4; margin-top:.45rem; padding:.45rem .55rem; }
+.rejected-banner strong { color:#882328; }
 @media (max-width:600px) { .request-row { gap:.55rem; padding:.7rem .15rem; } .request-art { flex-basis:68px; height:76px; } .request-title-line h2 { font-size:.72rem; } .status-badge { font-size:.56rem; padding:.27rem .35rem; } .request-meta,.request-date { font-size:.61rem; } .row-actions { gap:.3rem; } .small-primary,.small-secondary,.text-action { font-size:.61rem; min-height:29px; padding:.32rem .48rem; } }

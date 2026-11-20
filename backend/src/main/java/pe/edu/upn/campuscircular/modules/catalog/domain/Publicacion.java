@@ -62,6 +62,15 @@ public class Publicacion {
     @Column(name = "precio_solidario", precision = 10, scale = 2)
     private BigDecimal precioSolidario;
 
+    @Column(name = "imagen_url", columnDefinition = "LONGTEXT")
+    private String imagenUrl;
+
+    @Column(name = "imagenes_json", columnDefinition = "LONGTEXT")
+    private String imagenesJson;
+
+    @Column(name = "carrera", length = 100)
+    private String carrera;
+
     @Column(name = "fecha_creacion", nullable = false)
     private LocalDateTime fechaCreacion;
 
@@ -143,6 +152,30 @@ public class Publicacion {
 
     public void setPrecioSolidario(BigDecimal precioSolidario) {
         this.precioSolidario = precioSolidario;
+    }
+
+    public String getImagenUrl() {
+        return imagenUrl;
+    }
+
+    public void setImagenUrl(String imagenUrl) {
+        this.imagenUrl = imagenUrl;
+    }
+
+    public String getImagenesJson() {
+        return imagenesJson;
+    }
+
+    public void setImagenesJson(String imagenesJson) {
+        this.imagenesJson = imagenesJson;
+    }
+
+    public String getCarrera() {
+        return carrera;
+    }
+
+    public void setCarrera(String carrera) {
+        this.carrera = carrera;
     }
 
     public LocalDateTime getFechaCreacion() {

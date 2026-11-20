@@ -11,12 +11,12 @@
     <span class="requirements-badge">RF02 · Publicaciones</span>
   </header>
 
-  @if (publishedMaterial; as published) {
+  @if (publishedMaterial(); as published) {
     <section class="publication-success" role="status">
       <span class="success-mark" aria-hidden="true">✓</span>
       <div class="success-copy">
         <h2>¡Tu material está en el catálogo!</h2>
-        <p>{{ publishMessage }}</p>
+        <p>{{ publishMessage() }}</p>
       </div>
       <div class="success-actions">
         <a [routerLink]="['/material', published.id]">Ver detalle</a>
@@ -27,7 +27,7 @@
 
   <form class="publish-grid" [formGroup]="form" (ngSubmit)="publish()" novalidate>
     <section class="form-card left-card" aria-label="Información del material">
-      <app-photo-upload [previews]="previews" (previewsChange)="updatePreviews($event)" [photoErrors]="photoErrors" (photoErrorsChange)="photoErrors = $event" />
+      <app-photo-upload [previews]="previews()" (previewsChange)="updatePreviews($event)" [photoErrors]="photoErrors()" (photoErrorsChange)="updatePhotoErrors($event)" />
 
       <section class="form-section item-section">
         <h2>2. Información del material</h2>
@@ -122,12 +122,12 @@
         <p>Tu publicación será visible para la comunidad UPN.</p>
       </aside>
 
-      @if (publishMessage && !publishedMaterial) {
-        <p class="submit-error" role="alert">{{ publishMessage }}</p>
+      @if (publishMessage() && !publishedMaterial()) {
+        <p class="submit-error" role="alert">{{ publishMessage() }}</p>
       }
       <div class="form-actions">
         <button class="cancel-button" type="button" (click)="cancel()">Cancelar</button>
-        <button class="publish-button" type="submit" [disabled]="submitting"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h13l-3-3m4 13H6l3 3" /><path d="M18 7V4M6 17v3" /></svg>{{ submitting ? 'Publicando...' : 'Publicar material' }}</button>
+        <button class="publish-button" type="submit" [disabled]="submitting()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h13l-3-3m4 13H6l3 3" /><path d="M18 7V4M6 17v3" /></svg>{{ submitting() ? 'Publicando...' : 'Publicar material' }}</button>
       </div>
     </section>
   </form>

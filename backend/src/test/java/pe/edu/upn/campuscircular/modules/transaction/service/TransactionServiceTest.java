@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -34,13 +35,16 @@ import pe.edu.upn.campuscircular.modules.metrics.repository.MetricaImpactoReposi
 import pe.edu.upn.campuscircular.modules.metrics.service.ImpactMetricsService;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Calificacion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.EstadoTransaccion;
+import pe.edu.upn.campuscircular.modules.transaction.domain.MensajeTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.OfertaTrueque;
 import pe.edu.upn.campuscircular.modules.transaction.domain.TipoTransaccion;
 import pe.edu.upn.campuscircular.modules.transaction.domain.Transaccion;
 import pe.edu.upn.campuscircular.modules.transaction.dto.ConfirmDeliveryRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateRatingRequest;
+import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionMessageRequest;
 import pe.edu.upn.campuscircular.modules.transaction.dto.CreateTransactionRequest;
 import pe.edu.upn.campuscircular.modules.transaction.repository.CalificacionRepository;
+import pe.edu.upn.campuscircular.modules.transaction.repository.MensajeTransaccionRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.OfertaTruequeRepository;
 import pe.edu.upn.campuscircular.modules.transaction.repository.TransaccionRepository;
 
@@ -465,6 +469,86 @@ class TransactionServiceTest {
         assertEquals(2, saved.getArticulosReinsertados());
         assertEquals(new BigDecimal("0.850"), saved.getRaeeKg());
         assertEquals(new BigDecimal("160.00"), saved.getAhorroPen());
+    }
+
+    @Test
+    void createsVentaSolidariaWithoutOfferedPublicationAndSavesInitialMessage() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        MensajeTransaccionRepository messageRepository = mock(MensajeTransaccionRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, new BCryptPasswordEncoder(), null, null, messageRepository);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        requested.setModalidad(ModalidadPublicacion.VENTA_SOLIDARIA);
+        requested.setPrecioSolidario(new BigDecimal("35.00"));
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(publicationRepository.findById(101L)).thenReturn(Optional.of(requested));
+        when(transactionRepository.save(any(Transaccion.class))).thenAnswer(invocation -> {
+            Transaccion tx = invocation.getArgument(0);
+            ReflectionTestUtils.setField(tx, "idTransaccion", 401L);
+            return tx;
+        });
+
+        var response = service.create(
+            "solicitante@upn.pe",
+            new CreateTransactionRequest(101L, null, "Nos vemos mañana en biblioteca a las 3pm"));
+
+        assertEquals(TipoTransaccion.VENTA_SOLIDARIA, response.tipo());
+        assertEquals(EstadoTransaccion.PENDIENTE, response.estado());
+        assertNull(response.idPublicacionOfrecida());
+        verifyNoInteractions(offerRepository);
+        verify(messageRepository).save(any(MensajeTransaccion.class));
+    }
+
+    @Test
+    void participantsCanSendAndReadMessagesWhileOutsidersAreForbidden() {
+        TransaccionRepository transactionRepository = mock(TransaccionRepository.class);
+        OfertaTruequeRepository offerRepository = mock(OfertaTruequeRepository.class);
+        PublicacionRepository publicationRepository = mock(PublicacionRepository.class);
+        UsuarioRepository userRepository = mock(UsuarioRepository.class);
+        CalificacionRepository calificacionRepository = mock(CalificacionRepository.class);
+        MensajeTransaccionRepository messageRepository = mock(MensajeTransaccionRepository.class);
+        TransactionService service = new TransactionService(
+            transactionRepository, offerRepository, publicationRepository, userRepository,
+            calificacionRepository, new BCryptPasswordEncoder(), null, null, messageRepository);
+
+        Usuario requester = user(11L, EstadoUsuario.ACTIVO);
+        Usuario owner = user(22L, EstadoUsuario.ACTIVO);
+        Usuario outsider = user(99L, EstadoUsuario.ACTIVO);
+        Publicacion requested = publication(101L, owner);
+        Transaccion tx = transaction(301L, requested, requester, owner, EstadoTransaccion.EN_NEGOCIACION);
+
+        when(userRepository.findByCorreoInstitucional("solicitante@upn.pe"))
+            .thenReturn(Optional.of(requester));
+        when(userRepository.findByCorreoInstitucional("externo@upn.pe"))
+            .thenReturn(Optional.of(outsider));
+        when(transactionRepository.findById(301L)).thenReturn(Optional.of(tx));
+        when(messageRepository.save(any(MensajeTransaccion.class))).thenAnswer(invocation -> {
+            MensajeTransaccion msg = invocation.getArgument(0);
+            ReflectionTestUtils.setField(msg, "idMensaje", 701L);
+            return msg;
+        });
+        when(messageRepository.findByTransaccionIdTransaccionOrderByFechaEnvioAscIdMensajeAsc(301L))
+            .thenReturn(List.of());
+
+        var sent = service.sendMessage(
+            "solicitante@upn.pe", 301L, new CreateTransactionMessageRequest("Te espero en puerta 1"));
+        assertEquals(701L, sent.idMensaje());
+        assertEquals("Te espero en puerta 1", sent.contenido());
+
+        ResponseStatusException forbidden = assertThrows(
+            ResponseStatusException.class,
+            () -> service.getMessages("externo@upn.pe", 301L));
+        assertEquals(403, forbidden.getStatusCode().value());
     }
 
     private static Usuario user(long id, EstadoUsuario estado) {
